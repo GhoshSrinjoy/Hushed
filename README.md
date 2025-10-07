@@ -1,8 +1,50 @@
-# Python Code Analysis and Logging Tools
+*“Ever added print statements to debug… then forgot to remove half of them? This tool forgives you.”*  
 
-This repository contains two powerful tools for Python code analysis and runtime logging:
-1. Code Analyzer (`analyzer.py`)
-2. Rich Logger (`rich_logger.py`)
+# 🧩 Python Code Analysis & Logging Tools  
+
+Two tools for developers who like clean insights and beautiful logs , without the clutter.  
+**Logger** helps you analyze, instrument, and monitor Python code effortlessly.  
+
+🔗 **Repo:** https://github.com/GhoshSrinjoy/Logger  
+
+## ⚙️ Methodology  
+1. **Static Parsing**  
+   - Uses Python’s `ast` (Abstract Syntax Tree) to analyze code structure.  
+   - Extracts functions, line numbers, complexity, and print statements.  
+
+2. **Instrumentation**  
+   - Automatically injects logging hooks into your script.  
+   - Creates a new instrumented file (`*_analyzed.py`) that includes runtime tracking.  
+
+3. **Reporting**  
+   - Generates a visual complexity table and print summary.  
+   - Highlights potential bottlenecks or deeply nested functions.  
+
+### 🖥️ Rich Logger  
+1. **Execution Hook**  
+   - Wraps script execution with decorators and context managers.  
+   - Tracks each function’s entry, exit, and execution time.  
+
+2. **Live Console Rendering**  
+   - Uses the `rich` library to display colorful tables, spinners, and progress bars.  
+   - Updates the console in real time for long-running scripts.  
+
+3. **Statistics Collection**  
+   - Records call counts, average time per function, and total execution time.  
+   - Outputs a structured summary after completion.  
+
+---
+
+## Overview  
+
+This toolkit includes:  
+
+1. **Code Analyzer (`analyzer.py`)** – Understands your code before it runs.  
+2. **Rich Logger (`rich_logger.py`)** – Watches it beautifully while it does.  
+
+Together, they help you measure, monitor, and debug smarter , not noisier.  
+
+---
 
 ## Tools Overview
 
