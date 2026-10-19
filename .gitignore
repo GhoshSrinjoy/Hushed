@@ -9,4 +9,5 @@ dist/
 # Rust engine build output
 target/
 whathappened/*.pyd
+whathappened/*.pdb
 whathappened/*.so

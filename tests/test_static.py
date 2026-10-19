@@ -1,5 +1,7 @@
-"""Tests for the static side: functions, complexity and except-block verdicts."""
+"""Tests for `whathappened analyze`: functions, complexity and except-block verdicts."""
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -10,32 +12,59 @@ if sys.version_info < (3, 12):
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, ROOT)
+ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
 
-from whathappened import static  # noqa: E402
+VERDICTS = {
+    "pass": "ignored",
+    "continue": "ignored",
+    "return None": "ignored",
+    "print(e)": "printed",
+    "sys.stderr.write(str(e))": "printed",
+    "log.error('failed: %s', e)": "logged-message",
+    "warnings.warn(str(e))": "logged-message",
+    "log.error('failed', exc_info=True)": "logged",
+    "log.error('failed', exc_info=False)": "logged-message",
+    "log.exception('failed')": "logged",
+    "traceback.print_exc()": "logged",
+    "raise": "reraised",
+    "raise RuntimeError('x') from e": "reraised",
+    "value = default": "fallback",
+}
 
 
-def analyze(source):
+def analyze(*paths):
     with tempfile.TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, "snippet.py")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(textwrap.dedent(source))
-        return static.analyze_file(path)
+        report = os.path.join(tmp, "report.json")
+        proc = subprocess.run([sys.executable, "-m", "whathappened", "analyze", "--json", report, *paths],
+                              cwd=ROOT, env=ENV, capture_output=True, text=True, encoding="utf-8")
+        with open(report, encoding="utf-8") as f:
+            return proc.returncode, json.load(f)["files"]
 
 
-def verdict(body, catches="Exception"):
+def analyze_sources(sources):
+    """Write each snippet to its own file, analyze them in one run, return {name: file report}."""
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, source in sources.items():
+            with open(os.path.join(tmp, f"{name}.py"), "w", encoding="utf-8") as f:
+                f.write(textwrap.dedent(source))
+        _, files = analyze(tmp)
+    return {os.path.splitext(os.path.basename(f["path"]))[0]: f for f in files}
+
+
+def handler_snippet(body, catches="Exception"):
     clause = f"except {catches}:" if catches else "except:"
-    source = "try:\n    work()\n" + clause + "\n" + textwrap.indent(textwrap.dedent(body), "    ")
-    (handler,) = analyze(source).handlers
-    return handler.verdict, handler.broad
+    return "try:\n    work()\n" + clause + "\n    " + body + "\n"
 
 
 class ExampleScriptTests(unittest.TestCase):
-    def setUp(self):
-        self.report = static.analyze_file(os.path.join(ROOT, "examples", "test_script.py"))
+    @classmethod
+    def setUpClass(cls):
+        code, files = analyze(os.path.join("examples", "test_script.py"))
+        assert code == 0
+        cls.report = files[0]
 
     def test_functions_and_complexity(self):
-        self.assertEqual({f.qualname: f.complexity for f in self.report.functions}, {
+        self.assertEqual({f["qualname"]: f["complexity"] for f in self.report["functions"]}, {
             "calculate_fibonacci": 2,
             "process_data": 5,
             "process_data.<locals>.calculate_average": 2,
@@ -44,55 +73,45 @@ class ExampleScriptTests(unittest.TestCase):
         })
 
     def test_prints_after_a_nested_function_stay_in_their_scope(self):
-        scopes = dict(self.report.prints)
+        scopes = {line: scope for line, scope in self.report["prints"]}
         self.assertEqual(scopes[47], "process_data")
         self.assertEqual(scopes[51], "process_data")
-        self.assertNotIn("x", self.report.variables["process_data"])   # comprehension variable
+        self.assertEqual(self.report["variables"]["process_data"], ["e", "filtered_data", "result"])
 
     def test_except_blocks(self):
-        hiding = [(h.line, h.scope) for h in self.report.handlers if h.hides_errors]
+        handlers = self.report["handlers"]
+        hiding = [(h["line"], h["scope"]) for h in handlers if h["hides_errors"]]
         self.assertEqual(hiding, [(91, "main"), (99, "main"), (108, "main"), (114, "main")])
-        reraising = [h for h in self.report.handlers if h.verdict == "reraised"]
-        self.assertEqual([(h.line, h.scope) for h in reraising], [(50, "process_data")])
+        reraising = [(h["line"], h["scope"]) for h in handlers if h["verdict"] == "reraised"]
+        self.assertEqual(reraising, [(50, "process_data")])
 
 
 class VerdictTests(unittest.TestCase):
     def test_verdicts(self):
-        cases = {
-            "pass": "ignored",
-            "continue": "ignored",
-            "return None": "ignored",
-            "print(e)": "printed",
-            "sys.stderr.write(str(e))": "printed",
-            "log.error('failed: %s', e)": "logged-message",
-            "warnings.warn(str(e))": "logged-message",
-            "log.error('failed', exc_info=True)": "logged",
-            "log.exception('failed')": "logged",
-            "traceback.print_exc()": "logged",
-            "raise": "reraised",
-            "raise RuntimeError('x') from e": "reraised",
-            "value = default": "fallback",
-        }
-        for body, expected in cases.items():
+        reports = analyze_sources({f"case{i}": handler_snippet(body) for i, body in enumerate(VERDICTS)})
+        for i, (body, expected) in enumerate(VERDICTS.items()):
             with self.subTest(body=body):
-                self.assertEqual(verdict(body)[0], expected)
+                (handler,) = reports[f"case{i}"]["handlers"]
+                self.assertEqual(handler["verdict"], expected)
 
     def test_broad(self):
-        self.assertTrue(verdict("pass", catches="")[1])
-        self.assertTrue(verdict("pass", catches="Exception")[1])
-        self.assertTrue(verdict("pass", catches="(ValueError, BaseException)")[1])
-        self.assertFalse(verdict("pass", catches="ValueError")[1])
+        catches = {"bare": "", "exception": "Exception", "tuple": "(ValueError, BaseException)",
+                   "specific": "ValueError", "star": "* OSError"}
+        reports = analyze_sources({name: handler_snippet("pass", c) for name, c in catches.items()})
+        broad = {name: r["handlers"][0]["broad"] for name, r in reports.items()}
+        self.assertEqual(broad, {"bare": True, "exception": True, "tuple": True, "specific": False, "star": False})
+        self.assertEqual(reports["star"]["handlers"][0]["clause"], "except* OSError")
 
     def test_broad_fallback_hides_errors_but_specific_does_not(self):
-        broad = analyze("try:\n    x()\nexcept Exception:\n    y = 0\n").handlers[0]
-        specific = analyze("try:\n    x()\nexcept KeyError:\n    y = 0\n").handlers[0]
-        self.assertTrue(broad.hides_errors)
-        self.assertFalse(specific.hides_errors)
+        reports = analyze_sources({"broad": handler_snippet("y = 0", "Exception"),
+                                   "specific": handler_snippet("y = 0", "KeyError")})
+        self.assertTrue(reports["broad"]["handlers"][0]["hides_errors"])
+        self.assertFalse(reports["specific"]["handlers"][0]["hides_errors"])
 
 
 class StructureTests(unittest.TestCase):
     def test_qualified_names(self):
-        report = analyze("""
+        (report,) = analyze_sources({"shop": """
             class Shop:
                 @property
                 def total(self):
@@ -100,27 +119,25 @@ class StructureTests(unittest.TestCase):
                         return 1
                     return tax()
 
-            async def fetch(url, *, timeout=1, **kw):
+            async def fetch(url, /, *, timeout=1, **kw):
                 yield url
-        """)
-        functions = {f.qualname: f for f in report.functions}
+        """}).values()
+        functions = {f["qualname"]: f for f in report["functions"]}
         self.assertEqual(set(functions), {"Shop.total", "Shop.total.<locals>.tax", "fetch"})
-        self.assertEqual(functions["Shop.total"].decorators, ["property"])
-        self.assertEqual(functions["Shop.total"].first_line, functions["Shop.total"].line - 1)
-        self.assertTrue(functions["fetch"].is_async)
-        self.assertEqual(functions["fetch"].args, ["url", "*", "timeout", "**kw"])
-        self.assertEqual(functions["fetch"].returns, "yields")
-
-    def test_catch_site_picks_the_matching_clause(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, "s.py")
-            with open(path, "w", encoding="utf-8") as f:
-                f.write("try:\n    x()\nexcept ValueError:\n    pass\nexcept TypeError:\n    print(1)\n")
-            site = static.catch_site(path, 3, frozenset({"TypeError", "Exception", "BaseException"}))
-        self.assertEqual((site.kind, site.handler.line, site.handler.verdict), ("except", 5, "printed"))
+        self.assertEqual(functions["Shop.total"]["decorators"], ["property"])
+        self.assertEqual(functions["Shop.total"]["first_line"], functions["Shop.total"]["line"] - 1)
+        self.assertTrue(functions["fetch"]["is_async"])
+        self.assertEqual(functions["fetch"]["args"], ["url", "*", "timeout", "**kw"])
+        self.assertEqual(functions["fetch"]["returns"], "yields")
 
     def test_syntax_error_is_reported_not_raised(self):
-        self.assertIn("syntax error at line 1", analyze("def broken(:\n").error)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "broken.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("def broken(:\n")
+            code, files = analyze(path)
+        self.assertEqual(code, 1)
+        self.assertIn("syntax error at line 1", files[0]["error"])
 
 
 if __name__ == "__main__":

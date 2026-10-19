@@ -4,13 +4,22 @@ build-backend = "maturin"
 
 [project]
 name = "whathappened"
-version = "0.2.0"
+dynamic = ["version"]        # from Cargo.toml
 description = "Run a Python script unchanged and see what actually happened, including the errors it swallowed."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Srinjoy Ghosh" }]
 requires-python = ">=3.12"
 dependencies = []
+keywords = ["exceptions", "debugging", "profiling", "tracing", "sys.monitoring"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Debuggers",
+]
+
+[project.urls]
+Repository = "https://github.com/GhoshSrinjoy/Logger"
 
 [project.scripts]
 whathappened = "whathappened.__main__:main"

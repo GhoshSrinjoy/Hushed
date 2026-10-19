@@ -1,4 +1,6 @@
-"""whathappened: run a Python script unchanged and report what actually happened,
-including the errors it swallowed."""
+"""whathappened: run a Python script unchanged and see what actually happened, including the
+errors it swallowed.
 
-__version__ = "0.2.0"
+The tool is written in Rust (see src/ in the repository) and compiled into `whathappened._native`;
+this package only loads it.
+"""
