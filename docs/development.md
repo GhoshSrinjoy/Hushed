@@ -25,13 +25,16 @@ The tests run `python -m hushed` from an empty folder. If the Rust part was buil
 they use the checkout; otherwise they use the installed package. CI runs them on Linux, macOS and
 Windows with Python 3.12, 3.13 and 3.14 (see `.github/workflows/ci.yml`).
 
-## Screenshots
+## Screenshots and example output
 
-The images in the README and docs are rendered from real output:
+The images and the example code and output in the README and docs come from real files and runs:
 
 ```bash
 python scripts/make_screenshots.py     # writes docs/images/*.svg
+python scripts/update_docs.py          # fills the <!-- file: --> and <!-- output: --> blocks
 ```
+
+Run both after changing the report or the examples. Times change from run to run.
 
 ## Layout
 

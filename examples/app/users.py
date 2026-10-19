@@ -1,6 +1,5 @@
 """Loads the users to sync."""
 import json
-from pathlib import Path
 
 BUILT_IN = [
     {"id": 1, "email": "ada@example.com"},
@@ -9,7 +8,7 @@ BUILT_IN = [
 ]
 
 
-def load(path=Path(__file__).with_name("users.json")):
+def load(path="users.json"):
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)

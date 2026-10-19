@@ -55,9 +55,9 @@ import hushed
 ```
 
 Then run the program as usual. The same report is printed when it exits. Options are environment
-variables, and `HUSHED=0` turns it off without removing the line; see
-[Commands](commands.md#import-hushed). [`examples/app/`](../examples/app/main.py) is a small app
-with several modules and a thread pool, watched by that one line.
+variables, and `HUSHED=0` turns it off without removing the line. [`import hushed`](import-hushed.md)
+shows it with examples and their real output: a single script, an app with several modules and a
+thread pool, a crash, and every option.
 
 ## Look before you run
 

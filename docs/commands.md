@@ -79,6 +79,9 @@ It exits with 1 if a file could not be read or has a syntax error, and with 0 ot
 import hushed   # first line of the program's entry point
 ```
 
+This section is the reference. For examples with their real output, see
+[`import hushed`](import-hushed.md).
+
 Importing hushed gives the same report as `hushed run`, without changing how the program is
 started: `python app.py`, a launcher script, an IDE's Run button, a scheduled job. From the import
 on, the whole program is watched, including every module it imports and every thread it starts.
