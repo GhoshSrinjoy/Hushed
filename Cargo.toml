@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 description = "Run a Python script unchanged and see what actually happened, including the errors it swallowed"
 license = "MIT"
-repository = "https://github.com/GhoshSrinjoy/Logger"
+repository = "https://github.com/GhoshSrinjoy/Hushed"
 
 [lib]
 name = "_native"

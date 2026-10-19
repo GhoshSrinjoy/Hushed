@@ -28,10 +28,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/GhoshSrinjoy/Logger"
-Documentation = "https://github.com/GhoshSrinjoy/Logger/tree/main/docs"
-Issues = "https://github.com/GhoshSrinjoy/Logger/issues"
-Changelog = "https://github.com/GhoshSrinjoy/Logger/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/GhoshSrinjoy/Hushed"
+Documentation = "https://github.com/GhoshSrinjoy/Hushed/tree/main/docs"
+Issues = "https://github.com/GhoshSrinjoy/Hushed/issues"
+Changelog = "https://github.com/GhoshSrinjoy/Hushed/blob/main/CHANGELOG.md"
 
 [project.scripts]
 hushed = "hushed.__main__:main"

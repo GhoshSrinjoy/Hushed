@@ -1,8 +1,8 @@
 # hushed
 
-[![CI](https://github.com/GhoshSrinjoy/Logger/actions/workflows/ci.yml/badge.svg)](https://github.com/GhoshSrinjoy/Logger/actions/workflows/ci.yml)
+[![CI](https://github.com/GhoshSrinjoy/Hushed/actions/workflows/ci.yml/badge.svg)](https://github.com/GhoshSrinjoy/Hushed/actions/workflows/ci.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/GhoshSrinjoy/Logger/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/GhoshSrinjoy/Hushed/blob/main/LICENSE)
 
 **Your script said it worked. Here's what it hid.**
 
@@ -10,7 +10,7 @@
 swallowed: where it was raised, where it was caught, and what the `except` block did with it. It also
 shows time per function and the functions that never ran.
 
-![hushed run examples/pipeline.py](https://raw.githubusercontent.com/GhoshSrinjoy/Logger/main/docs/images/run.svg)
+![hushed run examples/pipeline.py](https://raw.githubusercontent.com/GhoshSrinjoy/Hushed/main/docs/images/run.svg)
 
 ## Why
 
@@ -38,7 +38,7 @@ hushed run --json report.json job.py    # also write the report as JSON
 hushed analyze src/                     # find except blocks that can hide errors, without running
 ```
 
-![hushed analyze examples/pipeline.py](https://raw.githubusercontent.com/GhoshSrinjoy/Logger/main/docs/images/analyze.svg)
+![hushed analyze examples/pipeline.py](https://raw.githubusercontent.com/GhoshSrinjoy/Hushed/main/docs/images/analyze.svg)
 
 ## What counts as swallowed
 
@@ -51,18 +51,18 @@ An error counts as swallowed if it was caught and the program carried on without
 - an error that killed a thread while the rest of the program kept going
 
 Errors that are logged with their traceback, re-raised, or caught on purpose for one specific type are
-not counted as swallowed. The [full rules](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/report.md#when-an-error-counts-as-swallowed)
+not counted as swallowed. The [full rules](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/report.md#when-an-error-counts-as-swallowed)
 are in the docs.
 
 ## Documentation
 
-- [Getting started](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/getting-started.md): install, first run, reading the report
-- [Commands](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/commands.md): every option, exit codes, environment variables
-- [The report](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/report.md): how `except` blocks are judged, and the JSON format
-- [Using hushed in CI](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/ci.md): fail a build when errors are swallowed
-- [How it works](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/how-it-works.md): `sys.monitoring`, the Rust engine, overhead, limitations
-- [Development](https://github.com/GhoshSrinjoy/Logger/blob/main/docs/development.md): building, testing and releasing
+- [Getting started](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/getting-started.md): install, first run, reading the report
+- [Commands](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/commands.md): every option, exit codes, environment variables
+- [The report](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/report.md): how `except` blocks are judged, and the JSON format
+- [Using hushed in CI](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/ci.md): fail a build when errors are swallowed
+- [How it works](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/how-it-works.md): `sys.monitoring`, the Rust engine, overhead, limitations
+- [Development](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/development.md): building, testing and releasing
 
 ## License
 
-MIT, see [LICENSE](https://github.com/GhoshSrinjoy/Logger/blob/main/LICENSE).
+MIT, see [LICENSE](https://github.com/GhoshSrinjoy/Hushed/blob/main/LICENSE).

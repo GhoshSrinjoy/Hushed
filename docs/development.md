@@ -80,7 +80,7 @@ first release:
 1. Sign in at <https://pypi.org>, open **Your account → Publishing**, and add a pending publisher:
    - PyPI project name: `hushed`
    - Owner: `GhoshSrinjoy`
-   - Repository: `Logger`
+   - Repository: `Hushed`
    - Workflow: `release.yml`
    - Environment: `pypi`
 2. Optional: in the GitHub repository, open **Settings → Environments → New environment**, name it
