@@ -44,6 +44,9 @@ Or put one line at the top of your program's entry point, and run it the way you
 import hushed   # watches the whole program from here on; the report is printed when it exits
 ```
 
+The [examples](https://github.com/GhoshSrinjoy/Hushed/tree/main/examples) show both ways, and how to
+read the JSON report from Python.
+
 ![hushed analyze examples/pipeline.py](https://raw.githubusercontent.com/GhoshSrinjoy/Hushed/main/docs/images/analyze.svg)
 
 ## What counts as swallowed

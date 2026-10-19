@@ -46,7 +46,7 @@ python scripts/make_screenshots.py     # writes docs/images/*.svg
 | `src/paths.rs` | which files count as the user's code |
 | `hushed/` | the Python package: just the launcher, and the call that starts `import hushed` |
 | `tests/` | end-to-end tests and their fixtures |
-| `examples/` | example scripts used in the docs |
+| `examples/` | example scripts used in the docs (`examples/README.md` lists them) |
 | `scripts/` | maintenance scripts |
 
 ## Releasing

@@ -6,7 +6,7 @@ import tempfile
 import textwrap
 import unittest
 
-from support import FIXTURES, hushed, python
+from support import EXAMPLES, FIXTURES, hushed, python
 from test_run import EXPECTED, swallowed
 
 if sys.version_info < (3, 12):
@@ -113,6 +113,15 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(err.count("hushed: "), 1, err)
         self.assertEqual(report["summary"]["hidden_errors"], 1)
+
+    def test_example_app(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report_path = os.path.join(tmp, "report.json")
+            app = python(os.path.join(EXAMPLES, "app", "main.py"), env={"HUSHED_JSON": report_path})
+            check = python(os.path.join(EXAMPLES, "check_report.py"), report_path)
+        self.assertEqual((app.returncode, app.stdout), (0, "synced 3 users\n"), app.stderr)
+        self.assertEqual(check.returncode, 1, check.stderr)
+        self.assertEqual(check.stdout.splitlines()[-1], "3 swallowed error(s)")
 
     @unittest.skipUnless(hasattr(os, "fork"), "needs os.fork")
     def test_forked_children_stay_quiet(self):

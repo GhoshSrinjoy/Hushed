@@ -104,7 +104,9 @@ Its options are environment variables, so they can be changed without touching t
 | `HUSHED_INCLUDE=DIR` | `--include DIR`; separate several folders with `:` (`;` on Windows) |
 | `HUSHED_TOP=N` | `--top N` |
 
-There is no `--fail-on-swallowed`: to fail a CI job, use `hushed run` ([Using hushed in CI](ci.md)).
+There is no `--fail-on-swallowed`: to fail a CI job, use `hushed run` ([Using hushed in CI](ci.md)),
+or write the report with `HUSHED_JSON` and check it afterwards, as
+[`examples/check_report.py`](../examples/check_report.py) does.
 
 ## Environment variables
 
