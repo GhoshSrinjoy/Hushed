@@ -1,6 +1,7 @@
 # Commands
 
-`hushed` has two commands. `python -m hushed ...` works the same as `hushed ...`.
+`hushed` has two commands. `python -m hushed ...` works the same as `hushed ...`. Instead of
+`hushed run`, a program can also [`import hushed`](#import-hushed).
 
 ## `hushed run`
 
@@ -72,6 +73,39 @@ value or yields, whether it has a docstring) and every `except` block that can h
 
 It exits with 1 if a file could not be read or has a syntax error, and with 0 otherwise.
 
+## `import hushed`
+
+```python
+import hushed   # first line of the program's entry point
+```
+
+Importing hushed gives the same report as `hushed run`, without changing how the program is
+started: `python app.py`, a launcher script, an IDE's Run button, a scheduled job. From the import
+on, the whole program is watched, including every module it imports and every thread it starts.
+The report goes to stderr when the program exits, after a crash too (Python's traceback is printed
+first, as usual).
+
+Put the import first. Code that ran before it isn't watched, and functions that only ran before it
+are listed as never run.
+
+It watches the same code `hushed run` would: the folder of the script Python was started with, or
+the current directory for `python -m`. It never changes the program's exit code. Inside
+`hushed run` the import does nothing, so the report isn't printed twice. `multiprocessing` workers
+and forked children don't print reports of their own.
+
+Its options are environment variables, so they can be changed without touching the code:
+
+| Variable | Same as |
+| --- | --- |
+| `HUSHED=0` | (no option) Make `import hushed` do nothing, without removing the line. |
+| `HUSHED_ALL=1` | `--all` |
+| `HUSHED_EXCEPTIONS_ONLY=1` | `--exceptions-only` |
+| `HUSHED_JSON=FILE` | `--json FILE` |
+| `HUSHED_INCLUDE=DIR` | `--include DIR`; separate several folders with `:` (`;` on Windows) |
+| `HUSHED_TOP=N` | `--top N` |
+
+There is no `--fail-on-swallowed`: to fail a CI job, use `hushed run` ([Using hushed in CI](ci.md)).
+
 ## Environment variables
 
 | Variable | Effect |
@@ -79,6 +113,7 @@ It exits with 1 if a file could not be read or has a syntax error, and with 0 ot
 | `NO_COLOR` | Never use colours. |
 | `FORCE_COLOR` | Use colours even when the output isn't a terminal (for example in CI logs). |
 | `TERM=dumb` | Never use colours. |
+| `HUSHED`, `HUSHED_*` | Options for [`import hushed`](#import-hushed). |
 
 When the output can't show the report's symbols (for example a legacy Windows console redirected
 to a file), hushed falls back to plain ASCII instead of failing.

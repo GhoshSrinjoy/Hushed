@@ -84,52 +84,138 @@ pub struct Options {
     pub timing: bool,
 }
 
-pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
-    let sys = py.import("sys")?;
-    let mon = sys.getattr("monitoring")?;
-    let tool = (3..=4u8) // the tool ids with no assigned role
-        .find(|i| mon.call_method1("get_tool", (*i,)).is_ok_and(|t| t.is_none()))
-        .ok_or_else(|| PyRuntimeError::new_err("no free sys.monitoring tool id (another tool is using 3 and 4)"))?;
-    let skip = skip_dirs(py)?;
-    let control_flow = PyTuple::new(
-        py,
-        [
-            PyStopIteration::type_object(py),
-            PyStopAsyncIteration::type_object(py),
-            PyGeneratorExit::type_object(py),
-        ],
-    )?;
-    let monitor = Bound::new(
-        py,
-        Monitor::new(
-            Roots::new(&opts.roots, &skip),
-            mon.getattr("DISABLE")?.unbind(),
-            control_flow.into_any().unbind(),
-        ),
-    )?;
+/// `sys.monitoring` switched on for one `Monitor`, until `stop`.
+pub struct Watch {
+    tool: u8,
+    events: Vec<i64>,
+    pub timing: bool,
+    pub monitor: Py<Monitor>,
+}
 
-    let events = mon.getattr("events")?;
-    let timing: &[(&str, &str)] = if opts.timing { &TIMING_HOOKS } else { &[] };
-    let mut hooks: Vec<(i64, Bound<PyAny>)> = Vec::new();
-    for (event, method) in HOOKS.iter().chain(timing) {
-        hooks.push((events.getattr(*event)?.extract()?, monitor.getattr(*method)?));
-    }
-    mon.call_method1("use_tool_id", (tool, "hushed"))?;
-    let stop = || {
-        let _ = mon.call_method1("set_events", (tool, 0));
-        for (id, _) in &hooks {
-            let _ = mon.call_method1("register_callback", (tool, *id, py.None()));
+impl Watch {
+    /// Start watching the code under `roots`, except the standard library and installed packages.
+    pub fn start(py: Python<'_>, roots: &[String], timing: bool) -> PyResult<Watch> {
+        let mon = py.import("sys")?.getattr("monitoring")?;
+        let tool = (3..=4u8) // the tool ids with no assigned role
+            .find(|i| mon.call_method1("get_tool", (*i,)).is_ok_and(|t| t.is_none()))
+            .ok_or_else(|| PyRuntimeError::new_err("no free sys.monitoring tool id (another tool is using 3 and 4)"))?;
+        let control_flow = PyTuple::new(
+            py,
+            [
+                PyStopIteration::type_object(py),
+                PyStopAsyncIteration::type_object(py),
+                PyGeneratorExit::type_object(py),
+            ],
+        )?;
+        let monitor = Bound::new(
+            py,
+            Monitor::new(
+                Roots::new(roots, &skip_dirs(py)?),
+                mon.getattr("DISABLE")?.unbind(),
+                control_flow.into_any().unbind(),
+            ),
+        )?;
+
+        let events = mon.getattr("events")?;
+        let timing_hooks: &[(&str, &str)] = if timing { &TIMING_HOOKS } else { &[] };
+        let mut hooks: Vec<(i64, Bound<PyAny>)> = Vec::new();
+        for (event, method) in HOOKS.iter().chain(timing_hooks) {
+            hooks.push((events.getattr(*event)?.extract()?, monitor.getattr(*method)?));
         }
-        let _ = mon.call_method1("free_tool_id", (tool,));
-    };
-    if let Err(e) = hooks
-        .iter()
-        .try_for_each(|(id, hook)| mon.call_method1("register_callback", (tool, *id, hook)).map(drop))
-    {
-        stop();
-        return Err(e);
+        mon.call_method1("use_tool_id", (tool, "hushed"))?;
+        let watch = Watch {
+            tool,
+            events: hooks.iter().map(|(id, _)| *id).collect(),
+            timing,
+            monitor: monitor.unbind(),
+        };
+        let started = hooks
+            .iter()
+            .try_for_each(|(id, hook)| mon.call_method1("register_callback", (tool, *id, hook)).map(drop))
+            .and_then(|_| mon.call_method1("set_events", (tool, watch.events.iter().sum::<i64>())));
+        if let Err(e) = started {
+            watch.stop(py);
+            return Err(e);
+        }
+        Ok(watch)
     }
 
+    pub fn stop(&self, py: Python<'_>) {
+        let Ok(mon) = py.import("sys").and_then(|sys| sys.getattr("monitoring")) else {
+            return;
+        };
+        let _ = mon.call_method1("set_events", (self.tool, 0));
+        for id in &self.events {
+            let _ = mon.call_method1("register_callback", (self.tool, *id, py.None()));
+        }
+        let _ = mon.call_method1("free_tool_id", (self.tool,));
+    }
+
+    pub fn roots(&self) -> &Roots {
+        self.monitor.get().roots()
+    }
+
+    /// Fill `result` with what was recorded. Call it after `stop`.
+    pub fn fill(&self, py: Python<'_>, result: &mut RunResult) -> PyResult<()> {
+        let recorded = self.monitor.get().take(py);
+        Builder {
+            py,
+            roots: self.roots().clone(),
+            lines: HashMap::new(),
+            parsed: HashMap::new(),
+        }
+        .fill(result, recorded)
+    }
+}
+
+impl RunResult {
+    pub fn new(target: &str, seconds: f64, timing: bool) -> Self {
+        RunResult {
+            target: target.to_owned(),
+            status: "ok",
+            exit_code: 0,
+            seconds,
+            timing,
+            error: None,
+            error_at: None,
+            swallowed: Vec::new(),
+            functions: Vec::new(),
+            never_ran: Vec::new(),
+            files: Vec::new(),
+        }
+    }
+
+    /// The run ended with an uncaught exception, whose traceback Python has printed.
+    pub fn crashed(&mut self, exc: &Bound<'_, PyAny>, tb: &Bound<'_, PyAny>, roots: &Roots) -> PyResult<()> {
+        let interrupted = exc.is_instance_of::<PyKeyboardInterrupt>();
+        (self.status, self.exit_code) = if interrupted {
+            ("interrupted", 130)
+        } else {
+            ("crash", 1)
+        };
+        let name: String = exc.get_type().getattr("__name__")?.extract()?;
+        let text = monitor::message(exc);
+        self.error = Some(if text.is_empty() {
+            name
+        } else {
+            format!("{name}: {text}")
+        });
+        self.error_at = crash_location(tb, roots)?;
+        Ok(())
+    }
+
+    /// The run ended with `sys.exit(code)`; Python's rules turn the code into an exit status.
+    pub fn exited(&mut self, code: &Bound<'_, PyAny>) {
+        self.status = "exit";
+        self.exit_code = if code.is_none() {
+            0
+        } else {
+            code.extract::<i64>().map_or(1, |n| n as i32)
+        };
+    }
+}
+
+pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
     // like `python script.py` (or `python folder/`, or `python -m module`)
     let script = paths::absolute(&opts.target);
     let path0 = if opts.module {
@@ -142,13 +228,7 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default()
     };
-    let (sys_path, saved_argv) = (sys.getattr("path")?, sys.getattr("argv")?);
-    let saved_path0 = sys_path.get_item(0)?;
-    sys.setattr(
-        "argv",
-        PyList::new(py, std::iter::once(&opts.target).chain(&opts.args))?,
-    )?;
-    sys_path.set_item(0, path0)?;
+    let sys = py.import("sys")?;
     let runpy = py.import("runpy")?;
     let kwargs = PyDict::new(py);
     kwargs.set_item("run_name", "__main__")?;
@@ -156,68 +236,45 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
         kwargs.set_item("alter_sys", true)?;
     }
 
+    let watch = Watch::start(py, &opts.roots, opts.timing)?;
+    let (sys_path, saved_argv) = (sys.getattr("path")?, sys.getattr("argv")?);
+    let saved_path0 = sys_path.get_item(0)?;
+    sys.setattr(
+        "argv",
+        PyList::new(py, std::iter::once(&opts.target).chain(&opts.args))?,
+    )?;
+    sys_path.set_item(0, path0)?;
     let clock = Instant::now();
-    let outcome = mon
-        .call_method1("set_events", (tool, hooks.iter().map(|(id, _)| id).sum::<i64>()))
-        .and_then(|_| {
-            if opts.module {
-                runpy.call_method("run_module", (&opts.target,), Some(&kwargs))
-            } else {
-                runpy.call_method("run_path", (&script,), Some(&kwargs))
-            }
-        });
+    let outcome = if opts.module {
+        runpy.call_method("run_module", (&opts.target,), Some(&kwargs))
+    } else {
+        runpy.call_method("run_path", (&script,), Some(&kwargs))
+    };
     let seconds = clock.elapsed().as_secs_f64();
-    stop();
+    watch.stop(py);
     sys.setattr("argv", saved_argv)?;
     sys_path.set_item(0, saved_path0)?;
 
-    let roots = Roots::new(&opts.roots, &skip);
-    let mut result = RunResult {
-        target: opts.target.clone(),
-        status: "ok",
-        exit_code: 0,
-        seconds,
-        timing: opts.timing,
-        error: None,
-        error_at: None,
-        swallowed: Vec::new(),
-        functions: Vec::new(),
-        never_ran: Vec::new(),
-        files: Vec::new(),
-    };
+    let mut result = RunResult::new(&opts.target, seconds, opts.timing);
     if let Err(err) = outcome {
         let value = err.value(py).clone().into_any();
         if err.is_instance_of::<PySystemExit>(py) {
-            result.status = "exit";
-            result.exit_code = exit_code(py, &value)?;
+            let code = value.getattr("code")?;
+            if !code.is_none() && code.extract::<i64>().is_err() {
+                // like Python, print a code that isn't a number (usually a message) to stderr
+                let kwargs = PyDict::new(py);
+                kwargs.set_item("file", sys.getattr("stderr")?)?;
+                py.import("builtins")?.getattr("print")?.call((&code,), Some(&kwargs))?;
+            }
+            result.exited(&code);
         } else {
-            let interrupted = err.is_instance_of::<PyKeyboardInterrupt>(py);
-            (result.status, result.exit_code) = if interrupted {
-                ("interrupted", 130)
-            } else {
-                ("crash", 1)
-            };
             let tb = user_traceback(py, &value)?;
             value.setattr("__traceback__", &tb)?; // 3.12's hook ignores its tb argument when one is attached
             sys.getattr("excepthook")?.call1((value.get_type(), &value, &tb))?; // print it the way Python would
-            let name: String = value.get_type().getattr("__name__")?.extract()?;
-            let text = monitor::message(&value);
-            result.error = Some(if text.is_empty() {
-                name
-            } else {
-                format!("{name}: {text}")
-            });
-            result.error_at = crash_location(&tb, &roots)?;
+            result.crashed(&value, &tb, watch.roots())?;
         }
     }
-    let recorded = monitor.get().take(py);
-    Builder {
-        py,
-        roots,
-        lines: HashMap::new(),
-        parsed: HashMap::new(),
-    }
-    .fill(&mut result, recorded)?;
+    watch.fill(py, &mut result)?;
     Ok(result)
 }
 
@@ -417,21 +474,6 @@ fn skip_dirs(py: Python<'_>) -> PyResult<Vec<String>> {
 fn package_dir(py: Python<'_>) -> Option<String> {
     let file: String = py.import("hushed").ok()?.getattr("__file__").ok()?.extract().ok()?;
     Path::new(&file).parent().map(|p| p.to_string_lossy().into_owned())
-}
-
-/// Python's own rules for turning a SystemExit code into a process exit status.
-fn exit_code(py: Python<'_>, exc: &Bound<'_, PyAny>) -> PyResult<i32> {
-    let code = exc.getattr("code")?;
-    if code.is_none() {
-        return Ok(0);
-    }
-    if let Ok(n) = code.extract::<i64>() {
-        return Ok(n as i32);
-    }
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("file", py.import("sys")?.getattr("stderr")?)?;
-    py.import("builtins")?.getattr("print")?.call((code,), Some(&kwargs))?;
-    Ok(1)
 }
 
 /// The exception's traceback without the frames of runpy and hushed at the top.

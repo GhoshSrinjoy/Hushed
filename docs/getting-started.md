@@ -44,6 +44,19 @@ hushed writes its report to stderr:
 Errors that were caught on purpose (logged with a traceback, a fallback for one specific exception
 type, `contextlib.suppress`) are counted on a separate line. Add `--all` to list them too.
 
+## Or import it
+
+If the program is started some other way (a launcher, an IDE, a scheduler), add one line at the
+top of its entry point instead:
+
+```python
+import hushed
+```
+
+Then run the program as usual. The same report is printed when it exits. Options are environment
+variables, and `HUSHED=0` turns it off without removing the line; see
+[Commands](commands.md#import-hushed).
+
 ## Look before you run
 
 `hushed analyze` reads files without running them. It lists every function with its complexity,

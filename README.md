@@ -38,6 +38,12 @@ hushed run --json report.json job.py    # also write the report as JSON
 hushed analyze src/                     # find except blocks that can hide errors, without running
 ```
 
+Or put one line at the top of your program's entry point, and run it the way you always do:
+
+```python
+import hushed   # watches the whole program from here on; the report is printed when it exits
+```
+
 ![hushed analyze examples/pipeline.py](https://raw.githubusercontent.com/GhoshSrinjoy/Hushed/main/docs/images/analyze.svg)
 
 ## What counts as swallowed

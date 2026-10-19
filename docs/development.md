@@ -38,12 +38,13 @@ python scripts/make_screenshots.py     # writes docs/images/*.svg
 | Path | What it holds |
 | --- | --- |
 | `src/cli.rs` | the command line |
+| `src/auto.rs` | `import hushed`: watching from the import, the report at exit |
 | `src/tracer.rs` | runs the script under `sys.monitoring` and builds the report data |
 | `src/monitor.rs` | the hooks that run on every call, return and exception |
 | `src/source.rs` | source analysis: functions, complexity, what each `except` block does |
 | `src/report.rs` | text and JSON output |
 | `src/paths.rs` | which files count as the user's code |
-| `hushed/` | the Python package: just the launcher |
+| `hushed/` | the Python package: just the launcher, and the call that starts `import hushed` |
 | `tests/` | end-to-end tests and their fixtures |
 | `examples/` | example scripts used in the docs |
 | `scripts/` | maintenance scripts |

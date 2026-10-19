@@ -20,5 +20,10 @@ if glob.glob(os.path.join(ROOT, "hushed", "_native*")):
 
 def hushed(*args):
     """Run `python -m hushed ARGS...` and return the finished process."""
-    return subprocess.run([sys.executable, "-m", "hushed", *args], cwd=_WORK.name, env=ENV,
+    return python("-m", "hushed", *args)
+
+
+def python(*args, env=None):
+    """Run `python ARGS...` and return the finished process."""
+    return subprocess.run([sys.executable, *args], cwd=_WORK.name, env={**ENV, **(env or {})},
                           capture_output=True, text=True, encoding="utf-8")

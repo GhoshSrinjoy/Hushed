@@ -36,6 +36,7 @@ fn as_prefix(dir: &str) -> String {
 
 /// The folders whose code is watched (`mine`) and the ones that never are (`skip`: the standard
 /// library, installed packages and hushed itself).
+#[derive(Clone)]
 pub struct Roots {
     mine: Vec<String>,
     skip: Vec<String>,

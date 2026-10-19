@@ -6,6 +6,7 @@
 //! code may switch threads.
 
 use crate::paths::Roots;
+use pyo3::exceptions::PySystemExit;
 use pyo3::intern;
 use pyo3::prelude::*;
 use rustc_hash::FxHashMap;
@@ -78,6 +79,7 @@ struct State {
     pending: FxHashMap<usize, Pending>,
     settled: FxHashMap<SwallowKey, (u64, String)>, // -> (count, first message)
     seq: u64,
+    exit: Option<(usize, Py<PyAny>)>, // a SystemExit on its way out: its address and its code
 }
 
 impl State {
@@ -229,6 +231,25 @@ impl Monitor {
         exc.is_instance(self.control_flow.bind(py)).unwrap_or(true) || !self.is_mine(code)
     }
 
+    /// Remember the code of a SystemExit being raised; `exit_code` returns it if nothing catches it.
+    fn exiting(&self, exc: &Bound<'_, PyAny>) {
+        if exc.is_instance_of::<PySystemExit>() {
+            let code = exc
+                .getattr(intern!(exc.py(), "code"))
+                .map_or_else(|_| exc.py().None(), Bound::unbind);
+            self.state().exit = Some((exc.as_ptr() as usize, code));
+        }
+    }
+
+    pub fn roots(&self) -> &Roots {
+        &self.roots
+    }
+
+    /// The code of the SystemExit that ended the program, if one did.
+    pub fn exit_code(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.state().exit.as_ref().map(|(_, code)| code.clone_ref(py))
+    }
+
     fn start_following(&self, code: &Bound<'_, PyAny>, offset: u32, exc: &Bound<'_, PyAny>, key: usize) {
         let origin = traceback(exc).as_ref().and_then(innermost_code);
         let exc_type = exc.get_type().into_any();
@@ -340,6 +361,7 @@ impl Monitor {
     // ---------------------------------------------------------------- exceptions
 
     fn on_raise(&self, py: Python<'_>, code: &Bound<'_, PyAny>, offset: u32, exc: &Bound<'_, PyAny>) -> Py<PyAny> {
+        self.exiting(exc);
         let key = exc.as_ptr() as usize;
         let origin = self.state().pending.get(&key).map(|p| p.origin);
         if let Some(origin) = origin {
@@ -369,7 +391,13 @@ impl Monitor {
 
     fn on_handled(&self, py: Python<'_>, code: &Bound<'_, PyAny>, offset: u32, exc: &Bound<'_, PyAny>) -> Py<PyAny> {
         let key = exc.as_ptr() as usize;
-        let known = self.state().pending.contains_key(&key);
+        let known = {
+            let mut st = self.state();
+            if st.exit.as_ref().is_some_and(|(k, _)| *k == key) {
+                st.exit = None; // caught: the program goes on
+            }
+            st.pending.contains_key(&key)
+        };
         if !known {
             if self.skip(py, code, exc) {
                 return py.None();
@@ -403,6 +431,7 @@ impl Monitor {
         _offset: &Bound<'_, PyAny>,
         exc: &Bound<'_, PyAny>,
     ) -> Py<PyAny> {
+        self.exiting(exc);
         if let Some(p) = self.state().pending.get_mut(&(exc.as_ptr() as usize)) {
             p.caught = None;
         }

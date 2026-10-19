@@ -177,12 +177,12 @@ fn python_files(path: &str) -> Vec<String> {
     found
 }
 
-fn write_json(file: &str, data: &serde_json::Value) -> Result<(), String> {
+pub fn write_json(file: &str, data: &serde_json::Value) -> Result<(), String> {
     let text = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
     std::fs::write(file, text + "\n").map_err(|e| format!("can't write {file}: {e}"))
 }
 
-fn complain(py: Python<'_>, message: &str) -> PyResult<i32> {
+pub fn complain(py: Python<'_>, message: &str) -> PyResult<i32> {
     let stderr = py.import("sys")?.getattr("stderr")?;
     stderr.call_method1("write", (format!("hushed: {message}\n"),))?;
     Ok(2)

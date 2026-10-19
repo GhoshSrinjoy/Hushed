@@ -57,11 +57,14 @@ rounding error. `--exceptions-only` costs nothing measurable, because exceptions
 ## Limitations
 
 - Only the main process is watched, not subprocesses or `multiprocessing` workers.
+- With `import hushed`, code that ran before the import isn't watched. If the program ends with
+  `os._exit()` or is killed, no report is printed, because `atexit` handlers don't run.
 - An error caught inside C code (for example `hasattr()`, or `getattr()` with a default) never
   reaches a Python handler, so hushed can't see it.
 - With Python's default C implementation of asyncio, an error stored in a task that is never
   awaited is invisible to hushed. asyncio itself logs those as "Task exception was never retrieved".
 - hushed uses `sys.monitoring` tool id 3, or 4 if 3 is taken. If something else in the process
-  uses both, `hushed run` stops with an error.
+  uses both, `hushed run` stops with an error, and `import hushed` prints a warning and lets the
+  program run unwatched.
 - Time per function counts only time spent running. Time a generator or coroutine spends suspended
   is not included.
