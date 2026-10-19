@@ -1,0 +1,20 @@
+[package]
+name = "whathappened-native"
+version = "0.2.0"
+edition = "2021"
+publish = false
+description = "Rust engine for whathappened: the sys.monitoring callbacks"
+license = "MIT"
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+# abi3: one compiled module works on Python 3.12 and every later version
+pyo3 = { version = "0.30.1", features = ["abi3-py312"] }
+rustc-hash = "2"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

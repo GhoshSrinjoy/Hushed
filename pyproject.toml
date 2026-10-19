@@ -1,0 +1,20 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "whathappened"
+version = "0.2.0"
+description = "Run a Python script unchanged and see what actually happened, including the errors it swallowed."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Srinjoy Ghosh" }]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+whathappened = "whathappened.__main__:main"
+
+[tool.maturin]
+module-name = "whathappened._native"
+features = ["pyo3/extension-module"]

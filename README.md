@@ -1,234 +1,149 @@
-*“Ever added print statements to debug… then forgot to remove half of them? This tool forgives you.”*  
+# whathappened
 
-# 🧩 Python Code Analysis & Logging Tools  
+**Your script said it worked. Here's what it hid.**
 
-Two tools for developers who like clean insights and beautiful logs , without the clutter.  
-**Logger** helps you analyze, instrument, and monitor Python code effortlessly.  
+`whathappened` runs any Python script unchanged and reports every error that was raised and then
+swallowed: where it was raised, where it was caught, and what the `except` block did with it. It also
+shows time per function and the functions that never ran.
 
-🔗 **Repo:** https://github.com/GhoshSrinjoy/Logger  
+```text
+$ whathappened run examples/test_script.py
+...the script's own output...
 
-## ⚙️ Methodology  
-1. **Static Parsing**  
-   - Uses Python’s `ast` (Abstract Syntax Tree) to analyze code structure.  
-   - Extracts functions, line numbers, complexity, and print statements.  
+── whathappened: examples/test_script.py ───────────────────────────
+finished normally in 0.31s  (rust engine)
 
-2. **Instrumentation**  
-   - Automatically injects logging hooks into your script.  
-   - Creates a new instrumented file (`*_analyzed.py`) that includes runtime tracking.  
+✗ 2 errors were swallowed (the run looked fine)
+  ValueError: Division by zero!
+      raised  complex_operation  test_script.py:73
+      caught  main               test_script.py:114  ← `except Exception` only printed the message; traceback lost
+  ValueError: Unknown operation: invalid
+      raised  complex_operation  test_script.py:76
+      caught  main               test_script.py:108  ← `except Exception` only printed the message; traceback lost
 
-3. **Reporting**  
-   - Generates a visual complexity table and print summary.  
-   - Highlights potential bottlenecks or deeply nested functions.  
-
-### 🖥️ Rich Logger  
-1. **Execution Hook**  
-   - Wraps script execution with decorators and context managers.  
-   - Tracks each function’s entry, exit, and execution time.  
-
-2. **Live Console Rendering**  
-   - Uses the `rich` library to display colorful tables, spinners, and progress bars.  
-   - Updates the console in real time for long-running scripts.  
-
-3. **Statistics Collection**  
-   - Records call counts, average time per function, and total execution time.  
-   - Outputs a structured summary after completion.  
-
----
-
-## Overview  
-
-This toolkit includes:  
-
-1. **Code Analyzer (`analyzer.py`)** – Understands your code before it runs.  
-2. **Rich Logger (`rich_logger.py`)** – Watches it beautifully while it does.  
-
-Together, they help you measure, monitor, and debug smarter , not noisier.  
-
----
-
-## Tools Overview
-
-### 1. Code Analyzer (`analyzer.py`)
-A static and runtime code analysis tool that:
-- Analyzes Python code structure
-- Calculates function complexity
-- Tracks print statements
-- Generates instrumented versions of scripts
-- Provides detailed reports
-
-### 2. Rich Logger (`rich_logger.py`)
-A real-time execution monitoring tool that:
-- Provides beautiful console output
-- Tracks function execution times
-- Shows progress bars
-- Generates execution statistics
-- Works with any Python script without modification
-
-## Example Scripts
-
-Two example scripts are provided to demonstrate the tools:
-
-### 1. Test Script (`test_script.py`)
-A basic script showing various Python features:
-```python
-def calculate_fibonacci(n: int) -> int:
-    print(f"Calculating Fibonacci for n={n}")
-    if n <= 1:
-        return n
-    return calculate_fibonacci(n-1) + calculate_fibonacci(n-2)
-
-def process_data(data: list, threshold: int = None):
-    print(f"Processing data with threshold {threshold}")
-    result = {'sum': sum(data)}
-    return result
-
-def main():
-    fib_result = calculate_fibonacci(6)
-    data = [1, 5, 3, 8, 2]
-    stats = process_data(data, threshold=3)
+Time per function  (includes the calls it makes)
+      0.302s  main                                     1 call
+      0.301s  complex_operation                        5 calls
+      0.000s  calculate_fibonacci                      25 calls
 ```
 
-### 2. Sentence Similarity Script (`sentence_similarity.py`)
-A more complex script using SBERT for sentence similarity:
-```python
-from sentence_transformers import SentenceTransformer
-import torch
+## Why
 
-class SentenceSimilarityAnalyzer:
-    def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
-        self.model = SentenceTransformer(model_name)
+Scripts are full of `try: ... except Exception as e: print(e)`. Such
+scripts exit 0 and print their results while part of the work quietly failed. Linters can flag the
+pattern, but they can't tell you which of those blocks fired in this run, or with what error. Error
+trackers need setup and never see a `print(e)`. Profilers ignore exceptions.
 
-    def calculate_similarity(self, sentence1: str, sentence2: str) -> float:
-        embeddings = self.model.encode([sentence1, sentence2])
-        return torch.cosine_similarity(embeddings[0], embeddings[1], dim=0)
+## Install
 
-def main():
-    analyzer = SentenceSimilarityAnalyzer()
-    similarity = analyzer.calculate_similarity(
-        "The quick brown fox",
-        "A fast brown fox"
-    )
-```
+Requires Python 3.12 or newer.
 
-## Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/GhoshSrinjoy/Logger.git
-cd Logger
+pip install .            # builds the Rust engine (needs a Rust toolchain: https://rustup.rs)
 ```
 
-2. Install required packages:
-```bash
-pip install rich sentence-transformers torch
-```
+Without Rust you can run straight from a checkout with `python -m whathappened ...`. It then uses
+the pure-Python engine, which gives the same results but runs slower (see [Speed](#speed)).
 
 ## Usage
 
-### Using the Code Analyzer
-
-1. Analyze a script:
 ```bash
-python analyzer.py test_script.py
+whathappened run script.py [args...]      # run a script, report to stderr
+whathappened run -m package.module        # run a module, like python -m
+whathappened analyze src/                 # read files without running them
 ```
 
-This will:
-- Create `test_script_analyzed.py`
-- Show analysis results including:
-  - Function complexity
-  - Print statement locations
-  - Variable usage
-  - Code structure
+Options for `run`:
 
-The analyzed version (`test_script_analyzed.py`) contains:
-- Original code with added instrumentation
-- Runtime logging capabilities
-- Performance tracking
+| Option | Effect |
+| --- | --- |
+| `--all` | also list errors caught on purpose (fallbacks, logged with traceback, `suppress`) |
+| `--fail-on-swallowed` | exit with code 3 when errors were swallowed but the script succeeded (for CI and cron jobs) |
+| `--json FILE` | also write the full report as JSON, for CI and other tools |
+| `--exceptions-only` | skip timing; the script runs at full speed |
+| `--engine rust\|python` | choose the engine (default: Rust when built) |
+| `--include DIR` | also watch code under `DIR` (default: the script's folder; installed packages are never watched) |
+| `--top N` | how many of the slowest functions to show |
 
-2. Run the analyzed version:
+The report goes to stderr, so the script's own stdout stays clean (`whathappened run job.py > out.csv`
+works). The exit code is the script's own: 0, its `sys.exit()` code, or 1 if it crashed. A crash still
+prints Python's normal traceback.
+
+`analyze` lists every function with its McCabe complexity, and every `except` block that can hide
+errors. Add `-v` to also list `print()` calls and assigned variables per scope, and `--json FILE`
+to write the result as JSON.
+
+## What counts as swallowed
+
+An error counts as swallowed if it was caught and the program carried on without it. `whathappened` reads the `except`
+block that caught it:
+
+| The handler... | Reported as |
+| --- | --- |
+| only has `pass` / `continue` / `return None` | silently ignored |
+| only prints the message | traceback lost |
+| logs the message without `exc_info` | traceback lost |
+| returns or assigns something else, under `except Exception` or bare `except:` | fallback hiding the error |
+| sits in a `finally` with `return` / `break` | error dropped |
+| (the error killed a thread while the main program kept going) | thread died |
+| logs with traceback, or takes a fallback for a specific exception type | caught on purpose (`--all`) |
+| re-raises, or raises a new error from it | not reported: the error is still visible |
+
+`StopIteration` and other control-flow exceptions are never reported.
+
+## How it works
+
+- **Nothing in your code is changed.** It uses `sys.monitoring` (PEP 669, Python 3.12+). There are no
+  decorators and no rewritten copies of your files, and `__future__` imports, pickling, `__main__`
+  guards and `sys.argv` behave exactly as with plain `python`.
+- **The hot path is Rust.** The callbacks that run on every function call, return and exception are a
+  compiled PyO3 module ([src/lib.rs](src/lib.rs)). [whathappened/tracer.py](whathappened/tracer.py)
+  has the same engine in pure Python as a fallback, and the tests check that both give identical
+  reports.
+- **It never holds on to an exception.** It follows each exception by its address, never by a
+  reference, so frames, open files and locals are freed exactly when they would be without the tool.
+- **Library code costs nothing.** Monitoring is switched off for code outside your project after its
+  first event.
+
+## Speed
+
+Worst case: a recursive `fib(25)` makes 242,785 tiny calls (Python 3.13, Windows).
+
+| Run | Time | Extra per call |
+| --- | --- | --- |
+| plain `python` | 0.006 s | – |
+| `whathappened`, Rust engine | 0.033 s | 0.11 µs |
+| `python -m cProfile` (C) | 0.035 s | 0.12 µs |
+| `whathappened`, Python engine | 0.249 s | 1.0 µs |
+| `whathappened --exceptions-only` | 0.006 s | none measurable |
+
+Functions that do real work (I/O, model calls, parsing) make the overhead a rounding error.
+
+## Limitations
+
+- Only the main process is watched, not subprocesses or `multiprocessing` workers.
+- Errors caught inside C code (for example `hasattr`, or `getattr` with a default) are invisible.
+- With Python's default C implementation of asyncio, errors stored in tasks that are never awaited
+  aren't seen (asyncio itself warns about those at exit).
+- Time per function counts only time actually running. Time a generator or coroutine spends
+  suspended is not included.
+
+## Development
+
 ```bash
-python test_script_analyzed.py
+cargo build --release                         # build the Rust engine...
+cp target/release/_native.dll whathappened/_native.pyd   # ...and drop it into the package (.so on Linux/macOS)
+python -m unittest discover -s tests          # runs every test against both engines
 ```
 
-### Using the Rich Logger
+`examples/` has the demo script above and a heavier one (`sentence_similarity.py`, which needs
+`sentence-transformers`).
 
-Monitor any Python script without modification:
-```bash
-python rich_logger.py test_script.py
-```
-
-This will show:
-- Real-time execution progress
-- Function call trees
-- Execution times
-- Beautiful console output
-- Error tracking
-- Performance statistics
-
-## Features Comparison
-
-### Code Analyzer
-- Static code analysis
-- Code complexity metrics
-- Print statement tracking
-- Variable scope analysis
-- Generated instrumented versions
-- One-time analysis reports
-
-### Rich Logger
-- Real-time monitoring
-- Beautiful progress bars
-- Live execution tracking
-- Function statistics
-- Error handling
-- No code modification needed
-
-## Example Outputs
-
-### Analyzer Output
-```
-Code Analysis Report
-┌─────────────┬──────────┬──────────┬─────────┐
-│ Function    │ Line No. │ Returns  │ Complex │
-├─────────────┼──────────┼──────────┼─────────┤
-│ calculate_  │    5     │    ✓     │    2    │
-│ process_    │   12     │    ✓     │    3    │
-└─────────────┴──────────┴──────────┴─────────┘
-```
-
-### Rich Logger Output
-```
-====== Starting Execution Logging ======
-[10:15:30] ► Starting: test_script.py
-[10:15:31] → Entering: calculate_fibonacci
-[10:15:32] ✓ Completed: (2.3s)
-...
-Function Statistics
-┌─────────────┬───────┬────────────┬──────────┐
-│ Function    │ Calls │ Total Time │ Avg Time │
-├─────────────┼───────┼────────────┼──────────┤
-│ fibonacci   │   8   │   2.3s     │   0.29s  │
-└─────────────┴───────┴────────────┴──────────┘
-```
-
-## Best Practices
-
-1. Code Analyzer:
-   - Use for initial code review
-   - Check code complexity
-   - Identify potential issues
-   - Generate instrumented versions
-
-2. Rich Logger:
-   - Use for runtime monitoring
-   - Debug performance issues
-   - Track execution flow
-   - Monitor production scripts
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+This replaces the earlier `analyzer.py` / `rich_logger.py` tools. The runtime monitor never
+wrapped any functions, and the instrumented copies printed `None` before every line and broke on
+`__future__` imports. `whathappened` covers both jobs: `run` for runtime behaviour and `analyze` for
+static structure.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT, see [LICENSE](LICENSE).
