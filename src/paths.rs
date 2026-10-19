@@ -42,11 +42,27 @@ pub struct Roots {
     skip: Vec<String>,
 }
 
+/// A folder as a path prefix, under its own name and, if it differs, its real one. On Unix Python
+/// resolves symlinks in the script's folder for `sys.path[0]`, so the modules a script imports can
+/// carry a path the script itself doesn't (`/var/...` and `/private/var/...` on macOS).
+fn as_prefixes(dir: &str) -> Vec<String> {
+    let mut prefixes = vec![as_prefix(dir)];
+    if cfg!(unix) {
+        if let Ok(real) = std::fs::canonicalize(dir) {
+            let real = as_prefix(&real.to_string_lossy());
+            if !prefixes.contains(&real) {
+                prefixes.push(real);
+            }
+        }
+    }
+    prefixes
+}
+
 impl Roots {
     pub fn new(mine: &[String], skip: &[String]) -> Self {
         Roots {
-            mine: mine.iter().map(|d| as_prefix(d)).collect(),
-            skip: skip.iter().map(|d| as_prefix(d)).collect(),
+            mine: mine.iter().flat_map(|d| as_prefixes(d)).collect(),
+            skip: skip.iter().flat_map(|d| as_prefixes(d)).collect(),
         }
     }
 

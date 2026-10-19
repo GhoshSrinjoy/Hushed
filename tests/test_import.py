@@ -108,6 +108,21 @@ class ImportTests(unittest.TestCase):
         self.assertEqual([f["function"] for f in default], ["spare"])
         self.assertEqual([f["function"] for f in everything], ["spare", "unused"])
 
+    @unittest.skipIf(os.name == "nt", "needs symlinks")
+    def test_folder_reached_through_a_symlink(self):
+        # Python resolves the symlink for sys.path[0], so helper.py gets the real path while
+        # __main__.__file__ keeps the link's; both must count as the program's own code
+        with tempfile.TemporaryDirectory() as tmp:
+            real, link = os.path.join(tmp, "real"), os.path.join(tmp, "link")
+            os.mkdir(real)
+            os.symlink(real, link)
+            with open(os.path.join(real, "helper.py"), "w", encoding="utf-8") as f:
+                f.write("def work():\n    try:\n        int('x')\n    except Exception:\n        pass\n")
+            with open(os.path.join(real, "app.py"), "w", encoding="utf-8") as f:
+                f.write("import hushed\nimport helper\n\nhelper.work()\n")
+            report = run_file(os.path.join(link, "app.py"))[3]
+        self.assertEqual(report["summary"]["hidden_errors"], 1)
+
     def test_switched_off(self):
         code, _, err, report = run("import hushed\n", env={"HUSHED": "0"})
         self.assertEqual((code, err, report), (0, "", None))
