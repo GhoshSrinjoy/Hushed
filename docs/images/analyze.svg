@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="858" height="311" viewBox="0 0 858 311" role="img" aria-label="hushed analyze examples/pipeline.py">
+<rect width="100%" height="100%" rx="10" fill="#1e1f29"/>
+<circle cx="20" cy="20" r="6" fill="#ff5f57"/><circle cx="40" cy="20" r="6" fill="#febc2e"/><circle cx="60" cy="20" r="6" fill="#28c840"/>
+<text font-family="ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14" fill="#d8dae5" xml:space="preserve">
+<tspan x="20.0" y="58" textLength="16.9" lengthAdjust="spacing" fill="#7f849c">$ </tspan>
+<tspan x="36.9" y="58" textLength="295.1" lengthAdjust="spacing" fill="#d8dae5" font-weight="bold">hushed analyze examples/pipeline.py</tspan>
+<tspan x="20.0" y="77" textLength="817.7" lengthAdjust="spacing" font-weight="bold">── examples/pipeline.py · 4 functions · 3 except blocks (3 can hide errors) · 2 print() calls ───</tspan>
+<tspan x="20.0" y="115" textLength="514.2" lengthAdjust="spacing" opacity="0.6">  line  function       args    complexity  returns  docstring</tspan>
+<tspan x="20.0" y="134" textLength="455.2" lengthAdjust="spacing">    15  load_settings  path             2  value    no</tspan>
+<tspan x="20.0" y="153" textLength="455.2" lengthAdjust="spacing">    23  parse          row              2  value    no</tspan>
+<tspan x="20.0" y="172" textLength="455.2" lengthAdjust="spacing">    30  price          record           2  value    no</tspan>
+<tspan x="20.0" y="191" textLength="455.2" lengthAdjust="spacing">    38  main           -                4  none     no</tspan>
+<tspan x="20.0" y="229" textLength="303.5" lengthAdjust="spacing" font-weight="bold">  except blocks that can hide errors</tspan>
+<tspan x="20.0" y="248" textLength="75.9" lengthAdjust="spacing">     19  </tspan>
+<tspan x="95.9" y="248" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">load_settings</tspan>
+<tspan x="205.5" y="248" textLength="177.0" lengthAdjust="spacing">  `except Exception` </tspan>
+<tspan x="382.5" y="248" textLength="168.6" lengthAdjust="spacing" fill="#f5c66b">took a fallback path</tspan>
+<tspan x="20.0" y="267" textLength="75.9" lengthAdjust="spacing">     26  </tspan>
+<tspan x="95.9" y="267" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">parse        </tspan>
+<tspan x="205.5" y="267" textLength="177.0" lengthAdjust="spacing">  `except Exception` </tspan>
+<tspan x="382.5" y="267" textLength="134.9" lengthAdjust="spacing" fill="#f5c66b">silently ignored</tspan>
+<tspan x="20.0" y="286" textLength="75.9" lengthAdjust="spacing">     33  </tspan>
+<tspan x="95.9" y="286" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">price        </tspan>
+<tspan x="205.5" y="286" textLength="185.5" lengthAdjust="spacing">  `except ValueError` </tspan>
+<tspan x="390.9" y="286" textLength="337.2" lengthAdjust="spacing" fill="#f5c66b">only printed the message; traceback lost</tspan>
+</text>
+</svg>

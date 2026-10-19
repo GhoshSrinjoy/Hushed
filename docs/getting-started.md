@@ -1,0 +1,64 @@
+# Getting started
+
+## Install
+
+```bash
+pip install hushed
+```
+
+hushed needs Python 3.12 or newer and works on Linux, macOS and Windows. It has no dependencies,
+so it can't conflict with the packages your script uses. Install it in the same environment as
+the script you want to watch, so the script finds its own packages.
+
+To build it from a checkout instead, see [Development](development.md).
+
+## Your first run
+
+Put `hushed run` in front of the command you would normally use. Everything after the script name
+is passed to the script:
+
+```bash
+hushed run job.py --input data.csv      # instead of: python job.py --input data.csv
+hushed run -m mypackage.tool            # instead of: python -m mypackage.tool
+```
+
+The repository has a small example, `examples/pipeline.py`. It is a data job that prints "done"
+even though part of its work failed:
+
+![hushed run examples/pipeline.py](images/run.svg)
+
+The first two lines are the script's own output; hushed doesn't change it. After the script ends,
+hushed writes its report to stderr:
+
+1. **The status line.** The script finished normally, so a plain `python` run would have looked
+   fine.
+2. **The swallowed errors.** Each entry shows the exception, the line where it was **raised**, the
+   line that **caught** it, and what that `except` block did with it. Here:
+   - `load_settings` couldn't find `settings.json`. A broad `except Exception` quietly returned
+     defaults, so the job ran with settings nobody chose.
+   - `parse` met a broken row. `except Exception` returned `None`, and the row vanished.
+   - `price` hit `'N/A'`. The handler printed a one-line warning, so you know something went
+     wrong but not which row, and the traceback is gone.
+3. **Time per function.** Each function's time includes the calls it makes.
+
+Errors that were caught on purpose (logged with a traceback, a fallback for one specific exception
+type, `contextlib.suppress`) are counted on a separate line. Add `--all` to list them too.
+
+## Look before you run
+
+`hushed analyze` reads files without running them. It lists every function with its complexity,
+and every `except` block that *can* hide an error:
+
+```bash
+hushed analyze src/
+```
+
+![hushed analyze examples/pipeline.py](images/analyze.svg)
+
+`analyze` shows what could go wrong; `run` shows what did go wrong in one particular run.
+
+## Next steps
+
+- [Commands](commands.md): all options, exit codes, and which code is watched
+- [The report](report.md): exactly how each `except` block is judged, and the JSON format
+- [Using hushed in CI](ci.md): fail a nightly job when it swallows errors

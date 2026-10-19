@@ -8,6 +8,6 @@ dist/
 
 # Rust engine build output
 target/
-whathappened/*.pyd
-whathappened/*.pdb
-whathappened/*.so
+hushed/*.pyd
+hushed/*.pdb
+hushed/*.so

@@ -6,15 +6,43 @@ use std::collections::{BTreeSet, HashSet};
 use tree_sitter::{Node, Parser, Tree};
 
 const BROAD: [&str; 2] = ["Exception", "BaseException"];
-const TRACEBACK_CALLS: [&str; 6] =
-    ["exception", "print_exc", "format_exc", "print_exception", "format_exception", "capture_exception"];
+const TRACEBACK_CALLS: [&str; 6] = [
+    "exception",
+    "print_exc",
+    "format_exc",
+    "print_exception",
+    "format_exception",
+    "capture_exception",
+];
 const LOG_CALLS: [&str; 8] = ["error", "warning", "warn", "info", "debug", "critical", "fatal", "log"];
-const SCOPES: [&str; 4] = ["function_definition", "class_definition", "decorated_definition", "lambda"];
-const CONSTANTS: [&str; 8] =
-    ["string", "concatenated_string", "integer", "float", "true", "false", "none", "ellipsis"];
+const SCOPES: [&str; 4] = [
+    "function_definition",
+    "class_definition",
+    "decorated_definition",
+    "lambda",
+];
+const CONSTANTS: [&str; 8] = [
+    "string",
+    "concatenated_string",
+    "integer",
+    "float",
+    "true",
+    "false",
+    "none",
+    "ellipsis",
+];
 const DECISIONS: [&str; 11] = [
-    "if_statement", "elif_clause", "conditional_expression", "for_statement", "while_statement",
-    "except_clause", "assert_statement", "case_clause", "for_in_clause", "if_clause", "boolean_operator",
+    "if_statement",
+    "elif_clause",
+    "conditional_expression",
+    "for_statement",
+    "while_statement",
+    "except_clause",
+    "assert_statement",
+    "case_clause",
+    "for_in_clause",
+    "if_clause",
+    "boolean_operator",
 ];
 
 /// The words the report uses for each verdict.
@@ -33,9 +61,9 @@ pub fn verdict_text(verdict: &str) -> &'static str {
 #[derive(Clone, Debug, Serialize)]
 pub struct Handler {
     pub line: usize,
-    pub scope: String,      // qualified name of the enclosing function, or "<module>"
-    pub catches: String,    // source text of the caught types; "" for a bare `except:`
-    pub broad: bool,        // bare, `Exception` or `BaseException`
+    pub scope: String,   // qualified name of the enclosing function, or "<module>"
+    pub catches: String, // source text of the caught types; "" for a bare `except:`
+    pub broad: bool,     // bare, `Exception` or `BaseException`
     pub verdict: &'static str,
     pub clause: String,
     pub hides_errors: bool,
@@ -44,11 +72,11 @@ pub struct Handler {
 #[derive(Clone, Debug, Serialize)]
 pub struct Function {
     pub qualname: String,
-    pub line: usize,        // the `def` line
-    pub first_line: usize,  // first decorator line, which is what code.co_firstlineno reports
+    pub line: usize,       // the `def` line
+    pub first_line: usize, // first decorator line, which is what code.co_firstlineno reports
     pub is_async: bool,
     pub args: Vec<String>,
-    pub complexity: usize,  // McCabe cyclomatic complexity of the function's own body
+    pub complexity: usize, // McCabe cyclomatic complexity of the function's own body
     pub returns: &'static str,
     pub docstring: bool,
     pub decorators: Vec<String>,
@@ -59,8 +87,8 @@ pub struct FileReport {
     pub path: String,
     pub functions: Vec<Function>,
     pub handlers: Vec<Handler>,
-    pub prints: Vec<(usize, String)>,                    // (line, scope)
-    pub variables: IndexMap<String, BTreeSet<String>>,  // scope -> assigned names
+    pub prints: Vec<(usize, String)>,                  // (line, scope)
+    pub variables: IndexMap<String, BTreeSet<String>>, // scope -> assigned names
     pub error: Option<String>,
 }
 
@@ -88,19 +116,32 @@ pub fn analyze_file(path: &str) -> FileReport {
 
 pub fn parse(path: &str) -> Result<Parsed, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    let body = if bytes.starts_with(b"\xef\xbb\xbf") { bytes[3..].to_vec() } else { bytes };
+    let body = if bytes.starts_with(b"\xef\xbb\xbf") {
+        bytes[3..].to_vec()
+    } else {
+        bytes
+    };
     let source = String::from_utf8(body)
         .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
         .into_bytes();
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_python::LANGUAGE.into()).map_err(|e| e.to_string())?;
+    parser
+        .set_language(&tree_sitter_python::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
     let tree = parser.parse(&source, None).ok_or("could not parse the file")?;
-    let mut report = FileReport { path: path.to_owned(), ..Default::default() };
+    let mut report = FileReport {
+        path: path.to_owned(),
+        ..Default::default()
+    };
     let root = tree.root_node();
     if root.has_error() {
         report.error = Some(format!("syntax error at line {}", first_error_line(root)));
     } else {
-        let mut c = Collector { src: &source, stack: vec![("module", "<module>".into())], ..Collector::default() };
+        let mut c = Collector {
+            src: &source,
+            stack: vec![("module", "<module>".into())],
+            ..Collector::default()
+        };
         c.visit(root);
         (report.functions, report.handlers, report.prints, report.variables) =
             (c.functions, c.handlers, c.prints, c.variables);
@@ -127,7 +168,9 @@ impl Parsed {
             }
             stack.extend(children(n));
         }
-        let Some(try_node) = innermost else { return Site::Unknown };
+        let Some(try_node) = innermost else {
+            return Site::Unknown;
+        };
         let parts = named(try_node);
         let finally_start = parts
             .iter()
@@ -138,7 +181,9 @@ impl Parsed {
             return Site::Finally; // return/break/continue inside `finally` dropped it
         }
         let clauses: Vec<Node> = parts.into_iter().filter(|p| p.kind() == "except_clause").collect();
-        let Some(first) = clauses.first() else { return Site::Unknown };
+        let Some(first) = clauses.first() else {
+            return Site::Unknown;
+        };
         let clause = clauses.iter().find(|c| self.matches(**c, type_names)).unwrap_or(first);
         match self.report.handlers.iter().find(|h| h.line == line_of(*clause)) {
             Some(h) => Site::Except(h),
@@ -204,9 +249,13 @@ impl Collector<'_> {
                 for d in &decorators {
                     self.visit_children(*d);
                 }
-                let texts = decorators.iter().filter_map(|d| named(*d).first().map(|e| text(*e, src).to_owned()));
+                let texts = decorators
+                    .iter()
+                    .filter_map(|d| named(*d).first().map(|e| text(*e, src).to_owned()));
                 match node.child_by_field_name("definition") {
-                    Some(def) if def.kind() == "function_definition" => self.function(def, texts.collect(), line_of(node)),
+                    Some(def) if def.kind() == "function_definition" => {
+                        self.function(def, texts.collect(), line_of(node))
+                    }
                     Some(def) => self.visit(def),
                     None => {}
                 }
@@ -221,14 +270,20 @@ impl Collector<'_> {
             }
             "lambda" => self.field(node, "body"),
             "call" => {
-                if node.child_by_field_name("function").is_some_and(|f| f.kind() == "identifier" && text(f, src) == "print") {
+                if node
+                    .child_by_field_name("function")
+                    .is_some_and(|f| f.kind() == "identifier" && text(f, src) == "print")
+                {
                     self.prints.push((line_of(node), self.scope()));
                 }
                 self.visit_children(node);
             }
             "except_clause" => {
                 self.handlers.push(handler(node, &self.scope(), src));
-                if let Some(alias) = node.child_by_field_name("value").and_then(|v| v.child_by_field_name("alias")) {
+                if let Some(alias) = node
+                    .child_by_field_name("value")
+                    .and_then(|v| v.child_by_field_name("alias"))
+                {
                     self.targets(alias);
                 }
                 self.visit_children(node);
@@ -292,8 +347,12 @@ impl Collector<'_> {
             line: line_of(node),
             first_line,
             is_async: children(node).iter().any(|c| c.kind() == "async"),
-            args: node.child_by_field_name("parameters").map_or_else(Vec::new, |p| arg_names(p, src)),
-            complexity: body.map_or(1, |b| 1 + walk_own(b).iter().filter(|n| DECISIONS.contains(&n.kind())).count()),
+            args: node
+                .child_by_field_name("parameters")
+                .map_or_else(Vec::new, |p| arg_names(p, src)),
+            complexity: body.map_or(1, |b| {
+                1 + walk_own(b).iter().filter(|n| DECISIONS.contains(&n.kind())).count()
+            }),
             returns: body.map_or("none", returns),
             docstring: body.is_some_and(has_docstring),
             decorators,
@@ -312,12 +371,23 @@ fn handler(node: Node, scope: &str, src: &[u8]) -> Handler {
     let types = caught_types(node);
     let catches = types.map(|t| text(t, src).to_owned()).unwrap_or_default();
     let broad = types.is_none_or(|t| identifiers(t, src).iter().any(|n| BROAD.contains(&n.as_str())));
-    let verdict = named(node).into_iter().find(|n| n.kind() == "block").map_or("ignored", |b| classify(b, src));
-    let star = if children(node).iter().any(|c| c.kind() == "*") { "*" } else { "" };
+    let verdict = named(node)
+        .into_iter()
+        .find(|n| n.kind() == "block")
+        .map_or("ignored", |b| classify(b, src));
+    let star = if children(node).iter().any(|c| c.kind() == "*") {
+        "*"
+    } else {
+        ""
+    };
     Handler {
         line: line_of(node),
         scope: scope.to_owned(),
-        clause: if catches.is_empty() { "except:".into() } else { format!("except{star} {catches}") },
+        clause: if catches.is_empty() {
+            "except:".into()
+        } else {
+            format!("except{star} {catches}")
+        },
         catches,
         broad,
         verdict,
@@ -328,7 +398,11 @@ fn handler(node: Node, scope: &str, src: &[u8]) -> Handler {
 /// The type expression of an `except` clause (without its `as name`), or None for a bare `except:`.
 fn caught_types(clause: Node) -> Option<Node> {
     let value = clause.child_by_field_name("value")?;
-    if value.kind() == "as_pattern" { named(value).first().copied() } else { Some(value) }
+    if value.kind() == "as_pattern" {
+        named(value).first().copied()
+    } else {
+        Some(value)
+    }
 }
 
 fn classify(block: Node, src: &[u8]) -> &'static str {
@@ -345,7 +419,8 @@ fn classify(block: Node, src: &[u8]) -> &'static str {
         c.child_by_field_name("arguments").is_some_and(|args| {
             named(args).iter().any(|k| {
                 k.kind() == "keyword_argument"
-                    && k.child_by_field_name("name").is_some_and(|n| text(n, src) == "exc_info")
+                    && k.child_by_field_name("name")
+                        .is_some_and(|n| text(n, src) == "exc_info")
                     && !k.child_by_field_name("value").is_some_and(|v| is_falsy(v, src))
             })
         })
@@ -365,7 +440,9 @@ fn is_trivial(stmt: Node) -> bool {
     match stmt.kind() {
         "pass_statement" | "continue_statement" | "break_statement" => true,
         "expression_statement" => matches!(named(stmt).as_slice(), [only] if CONSTANTS.contains(&only.kind())),
-        "return_statement" => matches!(named(stmt).as_slice(), [] | [_]) && named(stmt).iter().all(|v| v.kind() == "none"),
+        "return_statement" => {
+            matches!(named(stmt).as_slice(), [] | [_]) && named(stmt).iter().all(|v| v.kind() == "none")
+        }
         _ => false,
     }
 }
@@ -388,11 +465,15 @@ fn call_name<'s>(call: Node, src: &'s [u8]) -> &'s str {
 }
 
 fn writes_to_stream(call: Node, src: &[u8]) -> bool {
-    let Some(f) = call.child_by_field_name("function").filter(|f| f.kind() == "attribute") else { return false };
-    f.child_by_field_name("attribute").is_some_and(|a| text(a, src) == "write")
+    let Some(f) = call.child_by_field_name("function").filter(|f| f.kind() == "attribute") else {
+        return false;
+    };
+    f.child_by_field_name("attribute")
+        .is_some_and(|a| text(a, src) == "write")
         && f.child_by_field_name("object").is_some_and(|o| {
             o.kind() == "attribute"
-                && o.child_by_field_name("attribute").is_some_and(|a| matches!(text(a, src), "stdout" | "stderr"))
+                && o.child_by_field_name("attribute")
+                    .is_some_and(|a| matches!(text(a, src), "stdout" | "stderr"))
         })
 }
 
@@ -402,7 +483,10 @@ fn returns(body: Node) -> &'static str {
     let own = walk_own(body);
     if own.iter().any(|n| n.kind() == "yield") {
         "yields"
-    } else if own.iter().any(|n| n.kind() == "return_statement" && !named(*n).is_empty()) {
+    } else if own
+        .iter()
+        .any(|n| n.kind() == "return_statement" && !named(*n).is_empty())
+    {
         "value"
     } else {
         "none"
@@ -484,7 +568,9 @@ fn children(node: Node) -> Vec<Node> {
 
 fn named(node: Node) -> Vec<Node> {
     let mut cursor = node.walk();
-    node.named_children(&mut cursor).filter(|n| n.kind() != "comment").collect()
+    node.named_children(&mut cursor)
+        .filter(|n| n.kind() != "comment")
+        .collect()
 }
 
 fn text<'s>(node: Node, src: &'s [u8]) -> &'s str {

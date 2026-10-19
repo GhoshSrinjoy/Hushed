@@ -38,7 +38,7 @@ fn thread_key() -> u64 {
 
 /// What a run recorded, handed to the tracer once monitoring has stopped.
 pub struct Recorded {
-    pub codes: Vec<(Py<PyAny>, bool)>,     // every classified code object -> is it the user's
+    pub codes: Vec<(Py<PyAny>, bool)>, // every classified code object -> is it the user's
     pub calls: Vec<(Py<PyAny>, u64, f64)>, // code, calls, seconds in outermost activations
     pub settled: Vec<Settled>,
 }
@@ -109,7 +109,17 @@ impl State {
     fn follow(&mut self, key: usize, exc_type: Key, origin: Key, raised: (Key, u32)) {
         self.seq += 1;
         let seq = self.seq;
-        self.pending.insert(key, Pending { exc_type, origin, raised, caught: None, message: None, seq });
+        self.pending.insert(
+            key,
+            Pending {
+                exc_type,
+                origin,
+                raised,
+                caught: None,
+                message: None,
+                seq,
+            },
+        );
         if self.pending.len() > MAX_PENDING {
             let mut oldest: Vec<(u64, usize)> = self.pending.iter().map(|(k, p)| (p.seq, *k)).collect();
             oldest.sort_unstable();
@@ -140,7 +150,9 @@ impl State {
 }
 
 fn traceback<'py>(exc: &Bound<'py, PyAny>) -> Option<Bound<'py, PyAny>> {
-    exc.getattr(intern!(exc.py(), "__traceback__")).ok().filter(|t| !t.is_none())
+    exc.getattr(intern!(exc.py(), "__traceback__"))
+        .ok()
+        .filter(|t| !t.is_none())
 }
 
 fn has_next(tb: &Bound<'_, PyAny>) -> bool {
@@ -156,12 +168,17 @@ fn innermost_code<'py>(tb: &Bound<'py, PyAny>) -> Option<Bound<'py, PyAny>> {
         }
         tb = next;
     }
-    tb.getattr(intern!(py, "tb_frame")).ok()?.getattr(intern!(py, "f_code")).ok()
+    tb.getattr(intern!(py, "tb_frame"))
+        .ok()?
+        .getattr(intern!(py, "f_code"))
+        .ok()
 }
 
 /// `str(exc)` on one line, at most 160 characters.
 pub fn message(exc: &Bound<'_, PyAny>) -> String {
-    let Ok(text) = exc.str() else { return "<unprintable>".into() };
+    let Ok(text) = exc.str() else {
+        return "<unprintable>".into();
+    };
     let text = text.to_string_lossy().split_whitespace().collect::<Vec<_>>().join(" ");
     if text.chars().count() <= 160 {
         text
@@ -170,7 +187,7 @@ pub fn message(exc: &Bound<'_, PyAny>) -> String {
     }
 }
 
-#[pyclass(frozen, module = "whathappened._native")]
+#[pyclass(frozen, module = "hushed._native")]
 pub struct Monitor {
     roots: Roots,
     disable: Py<PyAny>,
@@ -180,7 +197,12 @@ pub struct Monitor {
 
 impl Monitor {
     pub fn new(roots: Roots, disable: Py<PyAny>, control_flow: Py<PyAny>) -> Self {
-        Monitor { roots, disable, control_flow, state: Mutex::new(State::default()) }
+        Monitor {
+            roots,
+            disable,
+            control_flow,
+            state: Mutex::new(State::default()),
+        }
     }
 
     fn state(&self) -> MutexGuard<'_, State> {
@@ -196,7 +218,10 @@ impl Monitor {
             .getattr(intern!(code.py(), "co_filename"))
             .and_then(|f| f.extract::<String>())
             .is_ok_and(|f| self.roots.is_mine(&f));
-        self.state().codes.entry(key).or_insert_with(|| (code.clone().unbind(), mine));
+        self.state()
+            .codes
+            .entry(key)
+            .or_insert_with(|| (code.clone().unbind(), mine));
         mine
     }
 
@@ -318,9 +343,8 @@ impl Monitor {
         let key = exc.as_ptr() as usize;
         let origin = self.state().pending.get(&key).map(|p| p.origin);
         if let Some(origin) = origin {
-            let same = traceback(exc).is_some_and(|tb| {
-                has_next(&tb) && innermost_code(&tb).is_some_and(|c| c.as_ptr() as Key == origin)
-            });
+            let same = traceback(exc)
+                .is_some_and(|tb| has_next(&tb) && innermost_code(&tb).is_some_and(|c| c.as_ptr() as Key == origin));
             let mut st = self.state();
             if same {
                 if let Some(p) = st.pending.get_mut(&key) {

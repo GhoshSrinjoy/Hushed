@@ -1,4 +1,4 @@
-//! whathappened: run a Python script unchanged and see what actually happened, including the
+//! hushed: run a Python script unchanged and see what actually happened, including the
 //! errors it swallowed. Everything is here in Rust; the Python package only checks the
 //! interpreter version and calls `main`.
 
@@ -11,7 +11,7 @@ mod tracer;
 
 use pyo3::prelude::*;
 
-/// The command line, called by `python -m whathappened` and the `whathappened` command.
+/// The command line, called by `python -m hushed` and the `hushed` command.
 #[pyfunction]
 fn main(py: Python<'_>, argv: Vec<String>) -> PyResult<i32> {
     cli::main(py, argv)

@@ -1,4 +1,4 @@
-"""End-to-end tests: run fixtures through `python -m whathappened run`."""
+"""End-to-end tests: run fixtures through `python -m hushed run`."""
 import json
 import os
 import subprocess
@@ -6,13 +6,10 @@ import sys
 import tempfile
 import unittest
 
-if sys.version_info < (3, 12):
-    raise unittest.SkipTest("whathappened needs Python 3.12+")
+from support import FIXTURES, hushed
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-FIXTURES = os.path.join(HERE, "fixtures")
-ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+if sys.version_info < (3, 12):
+    raise unittest.SkipTest("hushed needs Python 3.12+")
 
 # (function that caught it, exception type) -> (count, kind, hidden)
 EXPECTED = {
@@ -34,16 +31,11 @@ EXPECTED = {
 }
 
 
-def whathappened(*args):
-    return subprocess.run([sys.executable, "-m", "whathappened", *args], cwd=ROOT, env=ENV,
-                          capture_output=True, text=True, encoding="utf-8")
-
-
 def run(fixture, *options, args=()):
-    """Run a fixture under whathappened; return (exit code, stdout, stderr, JSON report)."""
+    """Run a fixture under hushed; return (exit code, stdout, stderr, JSON report)."""
     with tempfile.TemporaryDirectory() as tmp:
         report_path = os.path.join(tmp, "report.json")
-        proc = whathappened("run", "--json", report_path, *options, os.path.join(FIXTURES, fixture), *args)
+        proc = hushed("run", "--json", report_path, *options, os.path.join(FIXTURES, fixture), *args)
         with open(report_path, encoding="utf-8") as f:
             report = json.load(f)["run"]
     return proc.returncode, proc.stdout, proc.stderr, report
@@ -106,9 +98,9 @@ class RunTests(unittest.TestCase):
         self.assertEqual(run("cases.py", "--fail-on-swallowed")[0], 3)
 
     def test_command_line_errors(self):
-        self.assertEqual(whathappened("run", "no_such_script.py").returncode, 2)
-        self.assertEqual(whathappened("run").returncode, 2)
-        self.assertEqual(whathappened("--help").returncode, 0)
+        self.assertEqual(hushed("run", "no_such_script.py").returncode, 2)
+        self.assertEqual(hushed("run").returncode, 2)
+        self.assertEqual(hushed("--help").returncode, 0)
 
 
 if __name__ == "__main__":

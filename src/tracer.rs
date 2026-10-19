@@ -16,10 +16,18 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::time::Instant;
 
-const HOOKS: [(&str, &str); 3] = [("RAISE", "on_raise"), ("EXCEPTION_HANDLED", "on_handled"), ("RERAISE", "on_reraise")];
+const HOOKS: [(&str, &str); 3] = [
+    ("RAISE", "on_raise"),
+    ("EXCEPTION_HANDLED", "on_handled"),
+    ("RERAISE", "on_reraise"),
+];
 const TIMING_HOOKS: [(&str, &str); 6] = [
-    ("PY_START", "on_start"), ("PY_RESUME", "on_resume"), ("PY_THROW", "on_throw"),
-    ("PY_RETURN", "on_leave"), ("PY_YIELD", "on_leave"), ("PY_UNWIND", "on_unwind"),
+    ("PY_START", "on_start"),
+    ("PY_RESUME", "on_resume"),
+    ("PY_THROW", "on_throw"),
+    ("PY_RETURN", "on_leave"),
+    ("PY_YIELD", "on_leave"),
+    ("PY_UNWIND", "on_unwind"),
 ];
 
 #[derive(Clone, Debug, Serialize)]
@@ -34,7 +42,7 @@ pub struct Location {
 pub struct Swallowed {
     #[serde(rename = "type")]
     pub exc_type: String,
-    pub message: String,    // of the first occurrence
+    pub message: String, // of the first occurrence
     pub count: u64,
     pub raised: Location,
     pub caught: Location,
@@ -85,11 +93,19 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
     let skip = skip_dirs(py)?;
     let control_flow = PyTuple::new(
         py,
-        [PyStopIteration::type_object(py), PyStopAsyncIteration::type_object(py), PyGeneratorExit::type_object(py)],
+        [
+            PyStopIteration::type_object(py),
+            PyStopAsyncIteration::type_object(py),
+            PyGeneratorExit::type_object(py),
+        ],
     )?;
     let monitor = Bound::new(
         py,
-        Monitor::new(Roots::new(&opts.roots, &skip), mon.getattr("DISABLE")?.unbind(), control_flow.into_any().unbind()),
+        Monitor::new(
+            Roots::new(&opts.roots, &skip),
+            mon.getattr("DISABLE")?.unbind(),
+            control_flow.into_any().unbind(),
+        ),
     )?;
 
     let events = mon.getattr("events")?;
@@ -98,7 +114,7 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
     for (event, method) in HOOKS.iter().chain(timing) {
         hooks.push((events.getattr(*event)?.extract()?, monitor.getattr(*method)?));
     }
-    mon.call_method1("use_tool_id", (tool, "whathappened"))?;
+    mon.call_method1("use_tool_id", (tool, "hushed"))?;
     let stop = || {
         let _ = mon.call_method1("set_events", (tool, 0));
         for (id, _) in &hooks {
@@ -106,7 +122,10 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
         }
         let _ = mon.call_method1("free_tool_id", (tool,));
     };
-    if let Err(e) = hooks.iter().try_for_each(|(id, hook)| mon.call_method1("register_callback", (tool, *id, hook)).map(drop)) {
+    if let Err(e) = hooks
+        .iter()
+        .try_for_each(|(id, hook)| mon.call_method1("register_callback", (tool, *id, hook)).map(drop))
+    {
         stop();
         return Err(e);
     }
@@ -118,11 +137,17 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
     } else if Path::new(&script).is_dir() {
         script.clone()
     } else {
-        Path::new(&script).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
+        Path::new(&script)
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default()
     };
     let (sys_path, saved_argv) = (sys.getattr("path")?, sys.getattr("argv")?);
     let saved_path0 = sys_path.get_item(0)?;
-    sys.setattr("argv", PyList::new(py, std::iter::once(&opts.target).chain(&opts.args))?)?;
+    sys.setattr(
+        "argv",
+        PyList::new(py, std::iter::once(&opts.target).chain(&opts.args))?,
+    )?;
     sys_path.set_item(0, path0)?;
     let runpy = py.import("runpy")?;
     let kwargs = PyDict::new(py);
@@ -132,13 +157,15 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
     }
 
     let clock = Instant::now();
-    let outcome = mon.call_method1("set_events", (tool, hooks.iter().map(|(id, _)| id).sum::<i64>())).and_then(|_| {
-        if opts.module {
-            runpy.call_method("run_module", (&opts.target,), Some(&kwargs))
-        } else {
-            runpy.call_method("run_path", (&script,), Some(&kwargs))
-        }
-    });
+    let outcome = mon
+        .call_method1("set_events", (tool, hooks.iter().map(|(id, _)| id).sum::<i64>()))
+        .and_then(|_| {
+            if opts.module {
+                runpy.call_method("run_module", (&opts.target,), Some(&kwargs))
+            } else {
+                runpy.call_method("run_path", (&script,), Some(&kwargs))
+            }
+        });
     let seconds = clock.elapsed().as_secs_f64();
     stop();
     sys.setattr("argv", saved_argv)?;
@@ -165,18 +192,32 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
             result.exit_code = exit_code(py, &value)?;
         } else {
             let interrupted = err.is_instance_of::<PyKeyboardInterrupt>(py);
-            (result.status, result.exit_code) = if interrupted { ("interrupted", 130) } else { ("crash", 1) };
+            (result.status, result.exit_code) = if interrupted {
+                ("interrupted", 130)
+            } else {
+                ("crash", 1)
+            };
             let tb = user_traceback(py, &value)?;
             value.setattr("__traceback__", &tb)?; // 3.12's hook ignores its tb argument when one is attached
             sys.getattr("excepthook")?.call1((value.get_type(), &value, &tb))?; // print it the way Python would
             let name: String = value.get_type().getattr("__name__")?.extract()?;
             let text = monitor::message(&value);
-            result.error = Some(if text.is_empty() { name } else { format!("{name}: {text}") });
+            result.error = Some(if text.is_empty() {
+                name
+            } else {
+                format!("{name}: {text}")
+            });
             result.error_at = crash_location(&tb, &roots)?;
         }
     }
     let recorded = monitor.get().take(py);
-    Builder { py, roots, lines: HashMap::new(), parsed: HashMap::new() }.fill(&mut result, recorded)?;
+    Builder {
+        py,
+        roots,
+        lines: HashMap::new(),
+        parsed: HashMap::new(),
+    }
+    .fill(&mut result, recorded)?;
     Ok(result)
 }
 
@@ -196,7 +237,14 @@ impl Builder<'_> {
         }
         result.swallowed.sort_by(|a, b| {
             let key = |s: &Swallowed| {
-                (!s.hidden, Reverse(s.count), s.raised.file.clone(), s.raised.line, s.caught.file.clone(), s.caught.line)
+                (
+                    !s.hidden,
+                    Reverse(s.count),
+                    s.raised.file.clone(),
+                    s.raised.line,
+                    s.caught.file.clone(),
+                    s.caught.line,
+                )
             };
             key(a).cmp(&key(b))
         });
@@ -216,24 +264,41 @@ impl Builder<'_> {
             let code = code.bind(py);
             let (file, function, line) = info(code)?;
             executed.insert((paths::normcase(&file), function.clone(), line));
-            if code.getattr("co_name")?.extract::<String>()? != "<module>" {
+            // named functions only: not module bodies, lambdas or generator expressions
+            if !code.getattr("co_name")?.extract::<String>()?.starts_with('<') {
                 let file = self.roots.display(&file);
-                result.functions.push(FunctionStats { function, file, line, calls: *calls, seconds: *seconds });
+                result.functions.push(FunctionStats {
+                    function,
+                    file,
+                    line,
+                    calls: *calls,
+                    seconds: *seconds,
+                });
             }
         }
         result.functions.sort_by(|a, b| {
-            b.seconds.total_cmp(&a.seconds).then_with(|| (&a.file, a.line).cmp(&(&b.file, b.line)))
+            b.seconds
+                .total_cmp(&a.seconds)
+                .then_with(|| (&a.file, a.line).cmp(&(&b.file, b.line)))
         });
         for file in &files {
             let key = paths::normcase(file);
             let shown = self.roots.display(file);
             let Some(parsed) = self.parsed(file) else { continue };
             let missing = parsed.report.functions.iter().filter(|f| {
-                !f.decorators.iter().any(|d| d.ends_with("overload") || d.ends_with("abstractmethod"))
-                    && ![f.line, f.first_line].iter().any(|l| executed.contains(&(key.clone(), f.qualname.clone(), *l)))
+                !f.decorators
+                    .iter()
+                    .any(|d| d.ends_with("overload") || d.ends_with("abstractmethod"))
+                    && ![f.line, f.first_line]
+                        .iter()
+                        .any(|l| executed.contains(&(key.clone(), f.qualname.clone(), *l)))
             });
             let missing: Vec<Location> = missing
-                .map(|f| Location { file: shown.clone(), line: f.line, function: f.qualname.clone() })
+                .map(|f| Location {
+                    file: shown.clone(),
+                    line: f.line,
+                    function: f.qualname.clone(),
+                })
                 .collect();
             result.never_ran.extend(missing);
         }
@@ -259,9 +324,11 @@ impl Builder<'_> {
             match self.parsed(&file).map(|p| p.catch_site(line, &names)) {
                 Some(Site::Finally) => ("finally", true, None),
                 Some(Site::With) => ("with", false, None),
-                Some(Site::Except(h)) => {
-                    ("except", h.hides_errors || (h.verdict == "reraised" && h.broad), Some(h.clone()))
-                }
+                Some(Site::Except(h)) => (
+                    "except",
+                    h.hides_errors || (h.verdict == "reraised" && h.broad),
+                    Some(h.clone()),
+                ),
                 _ => ("unknown", false, None),
             }
         };
@@ -282,7 +349,10 @@ impl Builder<'_> {
     }
 
     fn parsed(&mut self, file: &str) -> Option<&Parsed> {
-        self.parsed.entry(file.to_owned()).or_insert_with(|| source::parse(file).ok()).as_ref()
+        self.parsed
+            .entry(file.to_owned())
+            .or_insert_with(|| source::parse(file).ok())
+            .as_ref()
     }
 
     fn location(&mut self, code: &Bound<'_, PyAny>, offset: u32) -> PyResult<Location> {
@@ -302,7 +372,11 @@ impl Builder<'_> {
             .find(|(_, end, line)| *end > offset as usize && line.is_some())
             .and_then(|(_, _, line)| *line)
             .unwrap_or(first);
-        Ok(Location { file: self.roots.display(&file), line, function })
+        Ok(Location {
+            file: self.roots.display(&file),
+            line,
+            function,
+        })
     }
 }
 
@@ -327,7 +401,7 @@ fn info(code: &Bound<'_, PyAny>) -> PyResult<(String, String, usize)> {
     ))
 }
 
-/// The standard library, installed packages and whathappened itself: never watched.
+/// The standard library, installed packages and hushed itself: never watched.
 fn skip_dirs(py: Python<'_>) -> PyResult<Vec<String>> {
     let paths = py.import("sysconfig")?.call_method0("get_paths")?;
     let mut dirs = Vec::new();
@@ -341,7 +415,7 @@ fn skip_dirs(py: Python<'_>) -> PyResult<Vec<String>> {
 }
 
 fn package_dir(py: Python<'_>) -> Option<String> {
-    let file: String = py.import("whathappened").ok()?.getattr("__file__").ok()?.extract().ok()?;
+    let file: String = py.import("hushed").ok()?.getattr("__file__").ok()?.extract().ok()?;
     Path::new(&file).parent().map(|p| p.to_string_lossy().into_owned())
 }
 
@@ -360,14 +434,23 @@ fn exit_code(py: Python<'_>, exc: &Bound<'_, PyAny>) -> PyResult<i32> {
     Ok(1)
 }
 
-/// The exception's traceback without the frames of runpy and whathappened at the top.
+/// The exception's traceback without the frames of runpy and hushed at the top.
 fn user_traceback<'py>(py: Python<'py>, exc: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let runpy_file = py.import("runpy")?.getattr("__file__").ok().and_then(|f| f.extract::<String>().ok());
+    let runpy_file = py
+        .import("runpy")?
+        .getattr("__file__")
+        .ok()
+        .and_then(|f| f.extract::<String>().ok());
     let runpy_file = runpy_file.map(|f| paths::normcase(&f));
     let package = package_dir(py).map(|d| paths::normcase(&d));
     let mut tb = exc.getattr("__traceback__")?;
     while !tb.is_none() {
-        let file = paths::normcase(&tb.getattr("tb_frame")?.getattr("f_code")?.getattr("co_filename")?.extract::<String>()?);
+        let file = paths::normcase(
+            &tb.getattr("tb_frame")?
+                .getattr("f_code")?
+                .getattr("co_filename")?
+                .extract::<String>()?,
+        );
         let ours = runpy_file.as_deref() == Some(file.as_str())
             || file.starts_with("<frozen")
             || package.as_ref().is_some_and(|p| Path::new(&file).starts_with(p));
@@ -386,7 +469,11 @@ fn crash_location(tb: &Bound<'_, PyAny>, roots: &Roots) -> PyResult<Option<Locat
         let code = tb.getattr("tb_frame")?.getattr("f_code")?;
         let (file, function, _) = info(&code)?;
         if roots.is_mine(&file) {
-            found = Some(Location { file: roots.display(&file), line: tb.getattr("tb_lineno")?.extract()?, function });
+            found = Some(Location {
+                file: roots.display(&file),
+                line: tb.getattr("tb_lineno")?.extract()?,
+                function,
+            });
         }
         tb = tb.getattr("tb_next")?;
     }

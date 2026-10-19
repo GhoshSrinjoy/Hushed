@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="875" height="501" viewBox="0 0 875 501" role="img" aria-label="hushed run examples/pipeline.py">
+<rect width="100%" height="100%" rx="10" fill="#1e1f29"/>
+<circle cx="20" cy="20" r="6" fill="#ff5f57"/><circle cx="40" cy="20" r="6" fill="#febc2e"/><circle cx="60" cy="20" r="6" fill="#28c840"/>
+<text font-family="ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14" fill="#d8dae5" xml:space="preserve">
+<tspan x="20.0" y="58" textLength="16.9" lengthAdjust="spacing" fill="#7f849c">$ </tspan>
+<tspan x="36.9" y="58" textLength="261.3" lengthAdjust="spacing" fill="#d8dae5" font-weight="bold">hushed run examples/pipeline.py</tspan>
+<tspan x="20.0" y="77" textLength="413.1" lengthAdjust="spacing">warning: could not convert string to float: 'N/A'</tspan>
+<tspan x="20.0" y="96" textLength="269.8" lengthAdjust="spacing">done: 3 records, total 14.49 USD</tspan>
+<tspan x="20.0" y="134" textLength="573.2" lengthAdjust="spacing" font-weight="bold">── hushed: examples/pipeline.py ────────────────────────────────────</tspan>
+<tspan x="20.0" y="153" textLength="143.3" lengthAdjust="spacing" fill="#7bd88f">finished normally</tspan>
+<tspan x="163.3" y="153" textLength="75.9" lengthAdjust="spacing"> in 0.00s</tspan>
+<tspan x="20.0" y="191" textLength="210.8" lengthAdjust="spacing" fill="#ff6b81" font-weight="bold">✗ 3 errors were swallowed</tspan>
+<tspan x="230.8" y="191" textLength="185.5" lengthAdjust="spacing" fill="#ff6b81"> (the run looked fine)</tspan>
+<tspan x="36.9" y="210" textLength="598.5" lengthAdjust="spacing" font-weight="bold">FileNotFoundError: [Errno 2] No such file or directory: 'settings.json'</tspan>
+<tspan x="20.0" y="229" textLength="118.0" lengthAdjust="spacing" opacity="0.6">      raised  </tspan>
+<tspan x="138.0" y="229" textLength="244.5" lengthAdjust="spacing">load_settings  pipeline.py:17</tspan>
+<tspan x="20.0" y="248" textLength="118.0" lengthAdjust="spacing" opacity="0.6">      caught  </tspan>
+<tspan x="138.0" y="248" textLength="244.5" lengthAdjust="spacing">load_settings  pipeline.py:19</tspan>
+<tspan x="382.5" y="248" textLength="362.5" lengthAdjust="spacing" fill="#f5c66b">  ← `except Exception` took a fallback path</tspan>
+<tspan x="36.9" y="267" textLength="775.6" lengthAdjust="spacing" font-weight="bold">JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)</tspan>
+<tspan x="20.0" y="286" textLength="118.0" lengthAdjust="spacing" opacity="0.6">      raised  </tspan>
+<tspan x="138.0" y="286" textLength="177.0" lengthAdjust="spacing">parse  pipeline.py:25</tspan>
+<tspan x="20.0" y="305" textLength="118.0" lengthAdjust="spacing" opacity="0.6">      caught  </tspan>
+<tspan x="138.0" y="305" textLength="177.0" lengthAdjust="spacing">parse  pipeline.py:26</tspan>
+<tspan x="315.1" y="305" textLength="328.8" lengthAdjust="spacing" fill="#f5c66b">  ← `except Exception` silently ignored</tspan>
+<tspan x="36.9" y="324" textLength="438.4" lengthAdjust="spacing" font-weight="bold">ValueError: could not convert string to float: 'N/A'</tspan>
+<tspan x="20.0" y="343" textLength="118.0" lengthAdjust="spacing" opacity="0.6">      raised  </tspan>
+<tspan x="138.0" y="343" textLength="177.0" lengthAdjust="spacing">price  pipeline.py:32</tspan>
+<tspan x="20.0" y="362" textLength="118.0" lengthAdjust="spacing" opacity="0.6">      caught  </tspan>
+<tspan x="138.0" y="362" textLength="177.0" lengthAdjust="spacing">price  pipeline.py:33</tspan>
+<tspan x="315.1" y="362" textLength="539.5" lengthAdjust="spacing" fill="#f5c66b">  ← `except ValueError` only printed the message; traceback lost</tspan>
+<tspan x="20.0" y="400" textLength="143.3" lengthAdjust="spacing" font-weight="bold">Time per function</tspan>
+<tspan x="163.3" y="400" textLength="261.3" lengthAdjust="spacing" opacity="0.6">  (includes the calls it makes)</tspan>
+<tspan x="20.0" y="419" textLength="118.0" lengthAdjust="spacing">      0.000s  </tspan>
+<tspan x="138.0" y="419" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">main         </tspan>
+<tspan x="247.6" y="419" textLength="67.4" lengthAdjust="spacing">  1 call</tspan>
+<tspan x="20.0" y="438" textLength="118.0" lengthAdjust="spacing">      0.000s  </tspan>
+<tspan x="138.0" y="438" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">load_settings</tspan>
+<tspan x="247.6" y="438" textLength="67.4" lengthAdjust="spacing">  1 call</tspan>
+<tspan x="20.0" y="457" textLength="118.0" lengthAdjust="spacing">      0.000s  </tspan>
+<tspan x="138.0" y="457" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">parse        </tspan>
+<tspan x="247.6" y="457" textLength="75.9" lengthAdjust="spacing">  4 calls</tspan>
+<tspan x="20.0" y="476" textLength="118.0" lengthAdjust="spacing">      0.000s  </tspan>
+<tspan x="138.0" y="476" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">price        </tspan>
+<tspan x="247.6" y="476" textLength="75.9" lengthAdjust="spacing">  3 calls</tspan>
+</text>
+</svg>

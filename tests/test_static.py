@@ -1,18 +1,15 @@
-"""Tests for `whathappened analyze`: functions, complexity and except-block verdicts."""
+"""Tests for `hushed analyze`: functions, complexity and except-block verdicts."""
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
 
-if sys.version_info < (3, 12):
-    raise unittest.SkipTest("whathappened needs Python 3.12+")
+from support import EXAMPLES, hushed
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+if sys.version_info < (3, 12):
+    raise unittest.SkipTest("hushed needs Python 3.12+")
 
 VERDICTS = {
     "pass": "ignored",
@@ -35,8 +32,7 @@ VERDICTS = {
 def analyze(*paths):
     with tempfile.TemporaryDirectory() as tmp:
         report = os.path.join(tmp, "report.json")
-        proc = subprocess.run([sys.executable, "-m", "whathappened", "analyze", "--json", report, *paths],
-                              cwd=ROOT, env=ENV, capture_output=True, text=True, encoding="utf-8")
+        proc = hushed("analyze", "--json", report, *paths)
         with open(report, encoding="utf-8") as f:
             return proc.returncode, json.load(f)["files"]
 
@@ -59,7 +55,7 @@ def handler_snippet(body, catches="Exception"):
 class ExampleScriptTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        code, files = analyze(os.path.join("examples", "test_script.py"))
+        code, files = analyze(os.path.join(EXAMPLES, "test_script.py"))
         assert code == 0
         cls.report = files[0]
 

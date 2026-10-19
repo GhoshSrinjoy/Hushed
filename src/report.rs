@@ -34,12 +34,23 @@ impl<'py> Out<'py> {
         let stream = py.import("sys")?.getattr(stream)?;
         let encoding = stream.getattr("encoding").ok().and_then(|e| e.extract::<String>().ok());
         let encoding = encoding.unwrap_or_else(|| "utf-8".into());
-        let unicode = PyString::new(py, "─✗✓←×·").call_method1("encode", (encoding.as_str(),)).is_ok();
-        Ok(Out { stream, encoding, unicode, lines: Vec::new() })
+        let unicode = PyString::new(py, "─✗✓←×·")
+            .call_method1("encode", (encoding.as_str(),))
+            .is_ok();
+        Ok(Out {
+            stream,
+            encoding,
+            unicode,
+            lines: Vec::new(),
+        })
     }
 
     fn sym(&self, fancy: &'static str, ascii: &'static str) -> &'static str {
-        if self.unicode { fancy } else { ascii }
+        if self.unicode {
+            fancy
+        } else {
+            ascii
+        }
     }
 
     fn line(&mut self, segments: Vec<Segment>) {
@@ -53,7 +64,10 @@ impl<'py> Out<'py> {
     fn rule(&mut self, title: &str) {
         let bar = self.sym("─", "-");
         let fill = 64usize.saturating_sub(title.chars().count()).max(3);
-        self.line(vec![seg(format!("{} {title} {}", bar.repeat(2), bar.repeat(fill)), "bold")]);
+        self.line(vec![seg(
+            format!("{} {title} {}", bar.repeat(2), bar.repeat(fill)),
+            "bold",
+        )]);
     }
 
     fn flush(self) -> PyResult<()> {
@@ -72,9 +86,14 @@ impl<'py> Out<'py> {
         // never crash on a character the stream cannot encode (e.g. cp1252 on Windows)
         let s = PyString::new(self.stream.py(), &text);
         let enc = self.encoding.as_str();
-        let safe = match s.call_method1("encode", (enc, "backslashreplace")).and_then(|b| b.call_method1("decode", (enc, "replace"))) {
+        let safe = match s
+            .call_method1("encode", (enc, "backslashreplace"))
+            .and_then(|b| b.call_method1("decode", (enc, "replace")))
+        {
             Ok(safe) => safe,
-            Err(_) => s.call_method1("encode", ("ascii", "backslashreplace"))?.call_method1("decode", ("ascii",))?,
+            Err(_) => s
+                .call_method1("encode", ("ascii", "backslashreplace"))?
+                .call_method1("decode", ("ascii",))?,
         };
         self.stream.call_method1("write", (safe,))?;
         self.stream.call_method0("flush")?;
@@ -100,7 +119,14 @@ fn supports_color(stream: &Bound<'_, PyAny>) -> bool {
     if std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty()) || std::env::var("TERM").is_ok_and(|t| t == "dumb") {
         return false;
     }
-    if !stream.call_method0("isatty").and_then(|r| r.is_truthy()).unwrap_or(false) {
+    if std::env::var_os("FORCE_COLOR").is_some_and(|v| !v.is_empty()) {
+        return true;
+    }
+    if !stream
+        .call_method0("isatty")
+        .and_then(|r| r.is_truthy())
+        .unwrap_or(false)
+    {
         return false;
     }
     enable_ansi(stream.call_method0("fileno").and_then(|f| f.extract()).unwrap_or(-1))
@@ -125,7 +151,8 @@ fn enable_ansi(fd: i64) -> bool {
         if GetConsoleMode(handle, &mut mode) == 0 {
             return false;
         }
-        mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0 || SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0
+        mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0
+            || SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0
     }
 }
 
@@ -139,7 +166,7 @@ fn enable_ansi(_fd: i64) -> bool {
 pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize) -> PyResult<()> {
     let mut out = Out::new(py, "stderr")?;
     out.blank();
-    out.rule(&format!("whathappened: {}", result.target));
+    out.rule(&format!("hushed: {}", result.target));
     out.line(status(result));
 
     let (hidden, handled): (Vec<&Swallowed>, Vec<&Swallowed>) = result.swallowed.iter().partition(|s| s.hidden);
@@ -150,8 +177,15 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
         out.line(vec![seg(format!("{tick} no swallowed errors"), "bold green")]);
     } else {
         let n: u64 = hidden.iter().map(|s| s.count).sum();
-        let headline = format!("{} {n} error{} swallowed", out.sym("✗", "x"), if n > 1 { "s were" } else { " was" });
-        out.line(vec![seg(headline, "bold red"), seg(if looked_fine { " (the run looked fine)" } else { "" }, "red")]);
+        let headline = format!(
+            "{} {n} error{} swallowed",
+            out.sym("✗", "x"),
+            if n > 1 { "s were" } else { " was" }
+        );
+        out.line(vec![
+            seg(headline, "bold red"),
+            seg(if looked_fine { " (the run looked fine)" } else { "" }, "red"),
+        ]);
         for s in &hidden {
             swallowed(&mut out, s);
         }
@@ -172,9 +206,17 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
 
     if result.timing && !result.functions.is_empty() {
         out.blank();
-        out.line(vec![seg("Time per function", "bold"), seg("  (includes the calls it makes)", "dim")]);
+        out.line(vec![
+            seg("Time per function", "bold"),
+            seg("  (includes the calls it makes)", "dim"),
+        ]);
         let shown = &result.functions[..top.min(result.functions.len())];
-        let width = shown.iter().map(|f| f.function.chars().count()).max().unwrap_or(0).min(48);
+        let width = shown
+            .iter()
+            .map(|f| f.function.chars().count())
+            .max()
+            .unwrap_or(0)
+            .min(48);
         for f in shown {
             let calls = format!("{} call{}", f.calls, if f.calls == 1 { "" } else { "s" });
             out.line(vec![
@@ -184,16 +226,30 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
             ]);
         }
         if result.functions.len() > shown.len() {
-            out.line(vec![seg(format!("  ... {} more", result.functions.len() - shown.len()), "dim")]);
+            out.line(vec![seg(
+                format!("  ... {} more", result.functions.len() - shown.len()),
+                "dim",
+            )]);
         }
     }
     if result.timing && !result.never_ran.is_empty() {
-        let names: Vec<String> =
-            result.never_ran.iter().take(10).map(|l| format!("{} ({}:{})", l.function, l.file, l.line)).collect();
+        let names: Vec<String> = result
+            .never_ran
+            .iter()
+            .take(10)
+            .map(|l| format!("{} ({}:{})", l.function, l.file, l.line))
+            .collect();
         let more = result.never_ran.len() - names.len();
-        let tail = if more > 0 { format!(" and {more} more") } else { String::new() };
+        let tail = if more > 0 {
+            format!(" and {more} more")
+        } else {
+            String::new()
+        };
         out.blank();
-        out.line(vec![seg(format!("Never ran ({}): ", result.never_ran.len()), "bold"), plain(names.join(", ") + &tail)]);
+        out.line(vec![
+            seg(format!("Never ran ({}): ", result.never_ran.len()), "bold"),
+            plain(names.join(", ") + &tail),
+        ]);
     }
     out.blank();
     out.flush()
@@ -209,27 +265,51 @@ fn status(r: &RunResult) -> Vec<Segment> {
         }
         "interrupted" => vec![seg("interrupted", "yellow"), plain(format!(" after {:.2}s", r.seconds))],
         _ => {
-            let at = r.error_at.as_ref().map(|a| format!(" at {} ({}:{})", a.function, a.file, a.line));
+            let at = r
+                .error_at
+                .as_ref()
+                .map(|a| format!(" at {} ({}:{})", a.function, a.file, a.line));
             let error = r.error.as_deref().unwrap_or("");
-            vec![seg("crashed", "bold red"), plain(took), plain(format!(": {error}{}", at.unwrap_or_default()))]
+            vec![
+                seg("crashed", "bold red"),
+                plain(took),
+                plain(format!(": {error}{}", at.unwrap_or_default())),
+            ]
         }
     }
 }
 
 fn swallowed(out: &mut Out, s: &Swallowed) {
-    let title = if s.message.is_empty() { s.exc_type.clone() } else { format!("{}: {}", s.exc_type, s.message) };
-    let times = if s.count > 1 { format!("  {}{}", out.sym("×", "x"), s.count) } else { String::new() };
+    let title = if s.message.is_empty() {
+        s.exc_type.clone()
+    } else {
+        format!("{}: {}", s.exc_type, s.message)
+    };
+    let times = if s.count > 1 {
+        format!("  {}{}", out.sym("×", "x"), s.count)
+    } else {
+        String::new()
+    };
     let arrow = out.sym("←", "<-");
     let width = s.raised.function.chars().count().max(s.caught.function.chars().count());
     out.line(vec![plain("  "), seg(title, "bold"), seg(times, "yellow")]);
     out.line(vec![
         seg("      raised  ", "dim"),
-        plain(format!("{:<width$}  {}:{}", s.raised.function, s.raised.file, s.raised.line)),
+        plain(format!(
+            "{:<width$}  {}:{}",
+            s.raised.function, s.raised.file, s.raised.line
+        )),
     ]);
     out.line(vec![
         seg("      caught  ", "dim"),
-        plain(format!("{:<width$}  {}:{}", s.caught.function, s.caught.file, s.caught.line)),
-        seg(format!("  {arrow} {}", s.reason), if s.hidden { "yellow" } else { "dim" }),
+        plain(format!(
+            "{:<width$}  {}:{}",
+            s.caught.function, s.caught.file, s.caught.line
+        )),
+        seg(
+            format!("  {arrow} {}", s.reason),
+            if s.hidden { "yellow" } else { "dim" },
+        ),
     ]);
 }
 
@@ -248,7 +328,11 @@ pub fn print_analysis(py: Python<'_>, reports: &[FileReport], verbose: bool) -> 
         let dot = out.sym("·", "-");
         out.rule(&format!(
             "{} {dot} {} functions {dot} {} except blocks ({} can hide errors) {dot} {} print() calls",
-            r.path, r.functions.len(), r.handlers.len(), hiding.len(), r.prints.len()
+            r.path,
+            r.functions.len(),
+            r.handlers.len(),
+            hiding.len(),
+            r.prints.len()
         ));
         if !r.functions.is_empty() {
             functions_table(&mut out, &r.functions);
@@ -271,8 +355,16 @@ pub fn print_analysis(py: Python<'_>, reports: &[FileReport], verbose: bool) -> 
             for (line, scope) in &r.prints {
                 prints.entry(scope).or_default().push(line.to_string());
             }
-            by_scope(&mut out, "print() calls", prints.into_iter().map(|(k, v)| (k.to_owned(), v)).collect());
-            let variables = r.variables.iter().map(|(k, v)| (k.clone(), v.iter().cloned().collect())).collect();
+            by_scope(
+                &mut out,
+                "print() calls",
+                prints.into_iter().map(|(k, v)| (k.to_owned(), v)).collect(),
+            );
+            let variables = r
+                .variables
+                .iter()
+                .map(|(k, v)| (k.clone(), v.iter().cloned().collect()))
+                .collect();
             by_scope(&mut out, "assigned variables", variables);
         }
     }
@@ -285,7 +377,11 @@ fn functions_table(out: &mut Out, functions: &[Function]) {
     let rows: Vec<[String; 6]> = functions
         .iter()
         .map(|f| {
-            let args = if f.args.is_empty() { "-".to_owned() } else { f.args.join(", ") };
+            let args = if f.args.is_empty() {
+                "-".to_owned()
+            } else {
+                f.args.join(", ")
+            };
             [
                 f.line.to_string(),
                 format!("{}{}", if f.is_async { "async " } else { "" }, f.qualname),
@@ -297,12 +393,21 @@ fn functions_table(out: &mut Out, functions: &[Function]) {
         })
         .collect();
     let widths: Vec<usize> = (0..6)
-        .map(|i| rows.iter().map(|r| r[i].chars().count()).chain([head[i].len()]).max().unwrap_or(0))
+        .map(|i| {
+            rows.iter()
+                .map(|r| r[i].chars().count())
+                .chain([head[i].len()])
+                .max()
+                .unwrap_or(0)
+        })
         .collect();
     out.blank();
     out.line(vec![seg(format!("  {}", cells(&head, &widths)), "dim")]);
     for (row, f) in rows.iter().zip(functions) {
-        out.line(vec![plain("  "), seg(cells(row, &widths), if f.complexity > 10 { "yellow" } else { "" })]);
+        out.line(vec![
+            plain("  "),
+            seg(cells(row, &widths), if f.complexity > 10 { "yellow" } else { "" }),
+        ]);
     }
 }
 
@@ -311,7 +416,13 @@ fn cells(row: &[String; 6], widths: &[usize]) -> String {
         .iter()
         .zip(widths)
         .enumerate()
-        .map(|(i, (cell, &w))| if i == 0 || i == 3 { format!("{cell:>w$}") } else { format!("{cell:<w$}") })
+        .map(|(i, (cell, &w))| {
+            if i == 0 || i == 3 {
+                format!("{cell:>w$}")
+            } else {
+                format!("{cell:<w$}")
+            }
+        })
         .collect();
     cells.join("  ").trim_end().to_owned()
 }
@@ -331,7 +442,11 @@ fn by_scope(out: &mut Out, title: &str, items: Vec<(String, Vec<String>)>) {
     out.blank();
     out.line(vec![seg(format!("  {title}"), "bold")]);
     for (scope, values) in items {
-        out.line(vec![plain("    "), seg(scope, "cyan"), plain(format!(": {}", values.join(", ")))]);
+        out.line(vec![
+            plain("    "),
+            seg(scope, "cyan"),
+            plain(format!(": {}", values.join(", "))),
+        ]);
     }
 }
 
@@ -342,11 +457,14 @@ pub fn run_json(result: &RunResult) -> Value {
     let hidden: u64 = result.swallowed.iter().filter(|s| s.hidden).map(|s| s.count).sum();
     let on_purpose: u64 = result.swallowed.iter().filter(|s| !s.hidden).map(|s| s.count).sum();
     if let Value::Object(map) = &mut run {
-        map.insert("summary".into(), json!({"hidden_errors": hidden, "caught_on_purpose": on_purpose}));
+        map.insert(
+            "summary".into(),
+            json!({"hidden_errors": hidden, "caught_on_purpose": on_purpose}),
+        );
     }
-    json!({"tool": "whathappened", "version": VERSION, "run": run})
+    json!({"tool": "hushed", "version": VERSION, "run": run})
 }
 
 pub fn analysis_json(reports: &[FileReport]) -> Value {
-    json!({"tool": "whathappened", "version": VERSION, "files": reports})
+    json!({"tool": "hushed", "version": VERSION, "files": reports})
 }

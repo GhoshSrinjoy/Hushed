@@ -35,7 +35,7 @@ fn as_prefix(dir: &str) -> String {
 }
 
 /// The folders whose code is watched (`mine`) and the ones that never are (`skip`: the standard
-/// library, installed packages and whathappened itself).
+/// library, installed packages and hushed itself).
 pub struct Roots {
     mine: Vec<String>,
     skip: Vec<String>,

@@ -3,7 +3,7 @@ requires = ["maturin>=1.7,<2"]
 build-backend = "maturin"
 
 [project]
-name = "whathappened"
+name = "hushed"
 dynamic = ["version"]        # from Cargo.toml
 description = "Run a Python script unchanged and see what actually happened, including the errors it swallowed."
 readme = "README.md"
@@ -11,19 +11,31 @@ license = { text = "MIT" }
 authors = [{ name = "Srinjoy Ghosh" }]
 requires-python = ">=3.12"
 dependencies = []
-keywords = ["exceptions", "debugging", "profiling", "tracing", "sys.monitoring"]
+keywords = ["exceptions", "error handling", "debugging", "profiling", "tracing", "sys.monitoring"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
     "Topic :: Software Development :: Debuggers",
+    "Topic :: Software Development :: Quality Assurance",
 ]
 
 [project.urls]
-Repository = "https://github.com/GhoshSrinjoy/Logger"
+Homepage = "https://github.com/GhoshSrinjoy/Logger"
+Documentation = "https://github.com/GhoshSrinjoy/Logger/tree/main/docs"
+Issues = "https://github.com/GhoshSrinjoy/Logger/issues"
+Changelog = "https://github.com/GhoshSrinjoy/Logger/blob/main/CHANGELOG.md"
 
 [project.scripts]
-whathappened = "whathappened.__main__:main"
+hushed = "hushed.__main__:main"
 
 [tool.maturin]
-module-name = "whathappened._native"
+module-name = "hushed._native"
 features = ["pyo3/extension-module"]

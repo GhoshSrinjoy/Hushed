@@ -1,15 +1,23 @@
-//! The command line: `whathappened run ...` and `whathappened analyze ...`.
+//! The command line: `hushed run ...` and `hushed analyze ...`.
 
 use crate::{paths, report, source, tracer};
 use clap::{Args, Parser, Subcommand};
 use pyo3::prelude::*;
 use std::path::Path;
 
-const SKIP_DIRS: [&str; 7] = ["__pycache__", "venv", "env", "node_modules", "build", "dist", "site-packages"];
+const SKIP_DIRS: [&str; 7] = [
+    "__pycache__",
+    "venv",
+    "env",
+    "node_modules",
+    "build",
+    "dist",
+    "site-packages",
+];
 
 #[derive(Parser)]
 #[command(
-    name = "whathappened",
+    name = "hushed",
     version,
     about = "Run a Python script unchanged and see what actually happened, including the errors it swallowed."
 )]
@@ -70,9 +78,13 @@ struct AnalyzeArgs {
 }
 
 pub fn main(py: Python<'_>, argv: Vec<String>) -> PyResult<i32> {
-    match Cli::try_parse_from(std::iter::once("whathappened".to_owned()).chain(argv)) {
-        Ok(Cli { command: Command::Run(args) }) => run(py, args),
-        Ok(Cli { command: Command::Analyze(args) }) => analyze(py, args),
+    match Cli::try_parse_from(std::iter::once("hushed".to_owned()).chain(argv)) {
+        Ok(Cli {
+            command: Command::Run(args),
+        }) => run(py, args),
+        Ok(Cli {
+            command: Command::Analyze(args),
+        }) => analyze(py, args),
         Err(e) => {
             let _ = e.print(); // --help, --version or a usage error
             Ok(e.exit_code())
@@ -89,7 +101,10 @@ fn run(py: Python<'_>, args: RunArgs) -> PyResult<i32> {
         vec![paths::absolute(&target)]
     } else if path.is_file() {
         let script = paths::absolute(&target);
-        vec![Path::new(&script).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or(script)]
+        vec![Path::new(&script)
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or(script)]
     } else {
         return complain(py, &format!("can't open file '{target}': no such file"));
     };
@@ -110,7 +125,11 @@ fn run(py: Python<'_>, args: RunArgs) -> PyResult<i32> {
         }
     }
     let hidden = result.swallowed.iter().any(|s| s.hidden);
-    Ok(if args.fail_on_swallowed && result.exit_code == 0 && hidden { 3 } else { result.exit_code })
+    Ok(if args.fail_on_swallowed && result.exit_code == 0 && hidden {
+        3
+    } else {
+        result.exit_code
+    })
 }
 
 fn analyze(py: Python<'_>, args: AnalyzeArgs) -> PyResult<i32> {
@@ -125,7 +144,11 @@ fn analyze(py: Python<'_>, args: AnalyzeArgs) -> PyResult<i32> {
             return complain(py, &e);
         }
     }
-    Ok(if reports.iter().any(|r| r.error.is_some()) { 1 } else { 0 })
+    Ok(if reports.iter().any(|r| r.error.is_some()) {
+        1
+    } else {
+        0
+    })
 }
 
 fn python_files(path: &str) -> Vec<String> {
@@ -133,7 +156,9 @@ fn python_files(path: &str) -> Vec<String> {
         return vec![path.to_owned()];
     }
     let mut found = Vec::new();
-    let Ok(entries) = std::fs::read_dir(path) else { return found };
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return found;
+    };
     let mut entries: Vec<_> = entries.filter_map(Result::ok).map(|e| e.path()).collect();
     entries.sort();
     let (dirs, files): (Vec<_>, Vec<_>) = entries.into_iter().partition(|p| p.is_dir());
@@ -141,7 +166,10 @@ fn python_files(path: &str) -> Vec<String> {
         found.push(file.to_string_lossy().into_owned());
     }
     for dir in dirs {
-        let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = dir
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         if !name.starts_with('.') && !SKIP_DIRS.contains(&name.as_str()) {
             found.extend(python_files(&dir.to_string_lossy()));
         }
@@ -156,6 +184,6 @@ fn write_json(file: &str, data: &serde_json::Value) -> Result<(), String> {
 
 fn complain(py: Python<'_>, message: &str) -> PyResult<i32> {
     let stderr = py.import("sys")?.getattr("stderr")?;
-    stderr.call_method1("write", (format!("whathappened: {message}\n"),))?;
+    stderr.call_method1("write", (format!("hushed: {message}\n"),))?;
     Ok(2)
 }
