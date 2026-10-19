@@ -336,7 +336,9 @@ impl Builder<'_> {
                 files.insert(info(code.bind(py))?.0);
             }
         }
-        result.files = files.iter().map(|f| self.roots.display(f)).collect();
+        // sorted as shown: one folder can appear under its link and its real path
+        let shown: BTreeSet<String> = files.iter().map(|f| self.roots.display(f)).collect();
+        result.files = shown.into_iter().collect();
         if !result.timing {
             return Ok(());
         }
@@ -384,6 +386,9 @@ impl Builder<'_> {
                 .collect();
             result.never_ran.extend(missing);
         }
+        result
+            .never_ran
+            .sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
         Ok(())
     }
 
