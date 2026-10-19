@@ -82,6 +82,7 @@ pub struct Options {
     pub module: bool,
     pub roots: Vec<String>,
     pub timing: bool,
+    pub all: bool, // list functions that never ran in every watched file, not only the script's
 }
 
 /// `sys.monitoring` switched on for one `Monitor`, until `stop`.
@@ -155,16 +156,20 @@ impl Watch {
         self.monitor.get().roots()
     }
 
-    /// Fill `result` with what was recorded. Call it after `stop`.
-    pub fn fill(&self, py: Python<'_>, result: &mut RunResult) -> PyResult<()> {
+    /// Fill `result` with what was recorded. Call it after `stop`. "Never ran" covers the program's
+    /// own `entry` file, or every watched file with `all`: a big program rarely runs all its code.
+    pub fn fill(&self, py: Python<'_>, result: &mut RunResult, entry: Option<&str>, all: bool) -> PyResult<()> {
         let recorded = self.monitor.get().take(py);
+        let entry = entry.map(|e| paths::normcase(&paths::absolute(e)));
         Builder {
             py,
             roots: self.roots().clone(),
             lines: HashMap::new(),
             parsed: HashMap::new(),
         }
-        .fill(result, recorded)
+        .fill(result, recorded, |file| {
+            all || entry.as_deref() == Some(paths::normcase(&paths::absolute(file)).as_str())
+        })
     }
 }
 
@@ -252,6 +257,13 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
     };
     let seconds = clock.elapsed().as_secs_f64();
     watch.stop(py);
+    let entry = if opts.module {
+        module_file(py, &opts.target) // while sys.path[0] still finds it
+    } else if Path::new(&script).is_dir() {
+        Some(Path::new(&script).join("__main__.py").to_string_lossy().into_owned())
+    } else {
+        Some(script.clone())
+    };
     sys.setattr("argv", saved_argv)?;
     sys_path.set_item(0, saved_path0)?;
 
@@ -274,8 +286,21 @@ pub fn run(py: Python<'_>, opts: &Options) -> PyResult<RunResult> {
             result.crashed(&value, &tb, watch.roots())?;
         }
     }
-    watch.fill(py, &mut result)?;
+    watch.fill(py, &mut result, entry.as_deref(), opts.all)?;
     Ok(result)
+}
+
+/// The file `python -m name` runs: the module's own, or its `__main__` for a package.
+fn module_file(py: Python<'_>, name: &str) -> Option<String> {
+    let util = py.import("importlib.util").ok()?;
+    let find = |name: &str| util.call_method1("find_spec", (name,)).ok().filter(|s| !s.is_none());
+    let spec = find(name)?;
+    let spec = if spec.getattr("submodule_search_locations").ok()?.is_none() {
+        spec
+    } else {
+        find(&format!("{name}.__main__"))?
+    };
+    spec.getattr("origin").ok()?.extract().ok()
 }
 
 struct Builder<'py> {
@@ -286,7 +311,7 @@ struct Builder<'py> {
 }
 
 impl Builder<'_> {
-    fn fill(&mut self, result: &mut RunResult, rec: Recorded) -> PyResult<()> {
+    fn fill(&mut self, result: &mut RunResult, rec: Recorded, never_ran_in: impl Fn(&str) -> bool) -> PyResult<()> {
         let py = self.py;
         for s in &rec.settled {
             let swallowed = self.swallowed(s)?;
@@ -338,7 +363,7 @@ impl Builder<'_> {
                 .total_cmp(&a.seconds)
                 .then_with(|| (&a.file, a.line).cmp(&(&b.file, b.line)))
         });
-        for file in &files {
+        for file in files.iter().filter(|f| never_ran_in(f)) {
             let key = paths::normcase(file);
             let shown = self.roots.display(file);
             let Some(parsed) = self.parsed(file) else { continue };

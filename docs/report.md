@@ -13,8 +13,10 @@ The report has up to five parts, written to stderr after the script ends.
 - `interrupted after 0.31s`: Ctrl+C
 
 **Swallowed errors.** Errors that were caught and then lost, see [below](#when-an-error-counts-as-swallowed).
-The headline adds "(the run looked fine)" when the script finished with exit code 0, because
-nothing outside hushed would have shown a problem. Each entry looks like this:
+The headline counts each error once (the same type, raised and caught at the same lines) and, when
+a loop repeated some of them, how often they happened in all: `4 errors were swallowed, 900 times
+in all`. It adds "(the run looked fine)" when the script finished with exit code 0, because nothing
+outside hushed would have shown a problem. Each entry looks like this:
 
 ```text
   ValueError: could not convert string to float: 'N/A'  ×12
@@ -37,8 +39,9 @@ them in the same format.
 calls the function makes. A recursive function is counted once, from its outermost call. Time a
 generator or coroutine spends suspended doesn't count.
 
-**Never ran.** Functions defined in the watched files that were never called. Functions decorated
-with `@overload` or `@abstractmethod` are left out.
+**Never ran.** Functions defined in the script's own file that were never called. With `--all`,
+those in every watched file: a big program rarely uses all of its code, so that list is long.
+Functions decorated with `@overload` or `@abstractmethod` are left out.
 
 ## When an error counts as swallowed
 
@@ -141,6 +144,7 @@ With `-v` the report also lists the `print()` calls and the assigned variable na
 | `status` | `"ok"`, `"exit"`, `"crash"` or `"interrupted"` |
 | `exit_code` | the exit code hushed returns, without `--fail-on-swallowed` |
 | `timing` | `false` with `--exceptions-only`; `functions` and `never_ran` are then empty |
+| `never_ran` | functions that never ran, in the script's own file (in every watched file with `--all`) |
 | `error`, `error_at` | for a crash: the error, and where in your code it was raised |
 | `swallowed[].kind` | `"except"`, `"with"`, `"finally"`, `"thread"`, `"library"`, or `"unknown"` when the source couldn't be read |
 | `swallowed[].hidden` | `true` for swallowed errors, `false` for errors caught on purpose |

@@ -67,6 +67,8 @@ class RunTests(unittest.TestCase):
         self.assertEqual(out.splitlines()[-1], "done")
         self.assertEqual(swallowed(report), EXPECTED)
         self.assertEqual(report["summary"], {"hidden_errors": 6, "caught_on_purpose": 60})
+        self.assertIn("6 errors were swallowed (the run looked fine)", err)
+        self.assertIn("+ 11 errors were caught on purpose, 60 times in all; show them with --all", err)
         self.assertEqual([n["function"] for n in report["never_ran"]], ["never_called"])
         self.assertIn("in_loop", {f["function"] for f in report["functions"]})
 

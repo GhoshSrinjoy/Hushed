@@ -41,7 +41,8 @@ struct RunArgs {
     /// Run a module, like `python -m`
     #[arg(short = 'm')]
     module: bool,
-    /// Also list errors that were caught on purpose
+    /// Also list errors that were caught on purpose, and functions that never ran in every watched
+    /// file (not only the script's own)
     #[arg(long)]
     all: bool,
     /// Skip timing, so the script runs at full speed
@@ -115,6 +116,7 @@ fn run(py: Python<'_>, args: RunArgs) -> PyResult<i32> {
         module: args.module,
         roots,
         timing: !args.exceptions_only,
+        all: args.all,
     };
     let result = tracer::run(py, &options)?;
     let _ = py.import("sys")?.getattr("stdout")?.call_method0("flush"); // the script's output first

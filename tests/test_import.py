@@ -40,7 +40,7 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(out.splitlines()[-1], "done")
         self.assertEqual(swallowed(report), EXPECTED)
         self.assertEqual(report["status"], "ok")
-        self.assertEqual([n["function"] for n in report["never_ran"]], ["never_called"])
+        self.assertEqual(report["never_ran"], [])  # never_called is in cases.py, not the program's file
         self.assertIn("hushed: ", err)
 
     def test_crash(self):
@@ -83,6 +83,30 @@ class ImportTests(unittest.TestCase):
                 pass
             """)
         self.assertEqual(report["status"], "ok")
+
+    def test_headline_counts_errors_not_repeats(self):
+        _, _, err, report = run("""\
+            import hushed
+            for _ in range(3):
+                try:
+                    int("x")
+                except Exception:
+                    pass
+            """)
+        self.assertIn("1 error was swallowed 3 times (the run looked fine)", err)
+        self.assertEqual(report["summary"]["hidden_errors"], 3)
+
+    def test_never_ran_lists_the_programs_own_file_unless_all(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "helper.py"), "w", encoding="utf-8") as f:
+                f.write("def used():\n    pass\n\n\ndef unused():\n    pass\n")
+            script = os.path.join(tmp, "app.py")
+            with open(script, "w", encoding="utf-8") as f:
+                f.write("import hushed\nimport helper\n\n\ndef spare():\n    pass\n\n\nhelper.used()\n")
+            default = run_file(script)[3]["never_ran"]
+            everything = run_file(script, env={"HUSHED_ALL": "1"})[3]["never_ran"]
+        self.assertEqual([f["function"] for f in default], ["spare"])
+        self.assertEqual([f["function"] for f in everything], ["spare", "unused"])
 
     def test_switched_off(self):
         code, _, err, report = run("import hushed\n", env={"HUSHED": "0"})

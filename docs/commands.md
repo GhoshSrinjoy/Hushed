@@ -23,7 +23,7 @@ hushed run --all job.py --verbose     # --all is for hushed, --verbose is for jo
 | Option | What it does |
 | --- | --- |
 | `-m` | Run a module, like `python -m`. The current directory is watched. |
-| `--all` | Also list errors that were caught on purpose. Without it they are only counted. |
+| `--all` | Also list errors that were caught on purpose (without it they are only counted), and the functions that never ran in every watched file, not only in the script itself. |
 | `--exceptions-only` | Skip timing. The script runs at full speed, and only swallowed errors are reported. |
 | `--fail-on-swallowed` | Exit with code 3 if the script succeeded but errors were swallowed. Meant for CI. |
 | `--json FILE` | Also write the full report to `FILE` as JSON ([format](report.md#json-format)). |

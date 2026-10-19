@@ -23,6 +23,7 @@ static ACTIVE: Mutex<Option<Py<Session>>> = Mutex::new(None);
 pub struct Session {
     watch: Watch,
     target: String,
+    entry: Option<String>, // the program's own file, for "never ran"
     started: Instant,
     show_all: bool,
     top: usize,
@@ -45,7 +46,7 @@ impl Session {
         } else if let Some(code) = self.watch.monitor.get().exit_code(py) {
             result.exited(code.bind(py));
         }
-        self.watch.fill(py, &mut result)?;
+        self.watch.fill(py, &mut result, self.entry.as_deref(), self.show_all)?;
         let _ = py.import("sys")?.getattr("stdout")?.call_method0("flush"); // the program's output first
         report::print_run(py, &result, self.show_all, self.top)?;
         if let Some(file) = &self.json {
@@ -87,7 +88,8 @@ pub fn cancel(py: Python<'_>) {
 }
 
 fn start(py: Python<'_>) -> PyResult<()> {
-    let mut roots = vec![main_folder(py)?];
+    let (entry, folder) = main_module(py)?;
+    let mut roots = vec![folder];
     if let Some(dirs) = setting("HUSHED_INCLUDE") {
         roots.extend(std::env::split_paths(&dirs).map(|d| d.to_string_lossy().into_owned()));
     }
@@ -95,6 +97,7 @@ fn start(py: Python<'_>) -> PyResult<()> {
     let session = Session {
         watch,
         target: target(py)?,
+        entry,
         started: Instant::now(),
         show_all: flag("HUSHED_ALL"),
         top: setting("HUSHED_TOP").and_then(|n| n.parse().ok()).unwrap_or(10),
@@ -153,24 +156,24 @@ fn in_child(py: Python<'_>) -> PyResult<bool> {
         .is_ok_and(|v| v.is_truthy().unwrap_or(false)))
 }
 
-/// The folder whose code is watched, chosen the way `hushed run` chooses it: the script's folder
-/// (or the folder given to `python folder/`), else the current directory (`python -m`, `-c`, a REPL).
-fn main_folder(py: Python<'_>) -> PyResult<String> {
+/// The program's own file, and the folder whose code is watched, chosen the way `hushed run` chooses
+/// it: the script's folder (or the folder given to `python folder/`), else the current directory
+/// (`python -m`, `-c`, a REPL).
+fn main_module(py: Python<'_>) -> PyResult<(Option<String>, String)> {
     let main = py.import("sys")?.getattr("modules")?.get_item("__main__").ok();
     let file = main
         .as_ref()
-        .and_then(|m| m.getattr("__file__").ok()?.extract::<String>().ok());
+        .and_then(|m| m.getattr("__file__").ok()?.extract::<String>().ok())
+        .map(|f| paths::absolute(&f));
     let module = main
         .and_then(|m| m.getattr("__spec__").ok())
         .filter(|spec| !spec.is_none())
         .and_then(|spec| spec.getattr("name").ok()?.extract::<String>().ok());
-    let folder = match (file, module.as_deref()) {
-        (Some(file), None | Some("__main__")) => Path::new(&paths::absolute(&file))
-            .parent()
-            .map(|p| p.to_string_lossy().into_owned()),
+    let folder = match (&file, module.as_deref()) {
+        (Some(file), None | Some("__main__")) => Path::new(file).parent().map(|p| p.to_string_lossy().into_owned()),
         _ => None,
     };
-    Ok(folder.unwrap_or_else(|| paths::absolute(".")))
+    Ok((file, folder.unwrap_or_else(|| paths::absolute("."))))
 }
 
 /// What the report calls the program: the script as it was given to Python.

@@ -11,6 +11,8 @@ First release as `hushed`.
   swallowing an error; a handler for specific types expected it, so it counts as caught on purpose.
   Handlers inside libraries are judged by the same rules, read from the library's source (including
   frozen standard library modules).
+- The report counts each swallowed error once, with how often it happened in all, and lists the
+  functions that never ran in the script's own file (in every watched file with `--all`).
 - `import hushed` at the top of a program gives the same report when the program exits, without
   changing how it is started. Options are environment variables (`HUSHED_JSON`, `HUSHED_ALL`, ...),
   and `HUSHED=0` turns it off.

@@ -176,12 +176,7 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
         let tick = out.sym("✓", "+");
         out.line(vec![seg(format!("{tick} no swallowed errors"), "bold green")]);
     } else {
-        let n: u64 = hidden.iter().map(|s| s.count).sum();
-        let headline = format!(
-            "{} {n} error{} swallowed",
-            out.sym("✗", "x"),
-            if n > 1 { "s were" } else { " was" }
-        );
+        let headline = format!("{} {}", out.sym("✗", "x"), how_many(&hidden, "swallowed"));
         out.line(vec![
             seg(headline, "bold red"),
             seg(if looked_fine { " (the run looked fine)" } else { "" }, "red"),
@@ -191,15 +186,17 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
         }
     }
     if !handled.is_empty() {
-        let n: u64 = handled.iter().map(|s| s.count).sum();
         if show_all {
             out.blank();
-            out.line(vec![seg(format!("Caught on purpose ({n})"), "bold")]);
+            out.line(vec![seg(
+                format!("Caught on purpose: {}", how_many(&handled, "")),
+                "bold",
+            )]);
             for s in &handled {
                 swallowed(&mut out, s);
             }
         } else {
-            let text = format!("  + {n} more caught on purpose (fallback, logged or suppressed); show them with --all");
+            let text = format!("  + {}; show them with --all", how_many(&handled, "caught on purpose"));
             out.line(vec![seg(text, "dim")]);
         }
     }
@@ -253,6 +250,24 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
     }
     out.blank();
     out.flush()
+}
+
+/// "3 errors were swallowed", "1 error was swallowed 3 times", "4 errors were swallowed, 900 times
+/// in all". An error is one type raised and caught at the same lines; a loop can repeat it.
+fn how_many(errors: &[&Swallowed], what: &str) -> String {
+    let n = errors.len();
+    let times: u64 = errors.iter().map(|s| s.count).sum();
+    let (noun, verb) = if n == 1 { ("error", "was") } else { ("errors", "were") };
+    let base = if what.is_empty() {
+        format!("{n} {noun}")
+    } else {
+        format!("{n} {noun} {verb} {what}")
+    };
+    match (n, times) {
+        (n, t) if t == n as u64 => base,
+        (1, t) => format!("{base} {t} times"),
+        (_, t) => format!("{base}, {t} times in all"),
+    }
 }
 
 fn status(r: &RunResult) -> Vec<Segment> {
