@@ -1,4 +1,4 @@
-# test_script.py
+# analyze_sample.py: a sample for `hushed analyze` (tests/test_static.py checks its line numbers)
 import time
 from typing import List, Dict, Optional
 

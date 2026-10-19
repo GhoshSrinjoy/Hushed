@@ -6,7 +6,7 @@ import tempfile
 import textwrap
 import unittest
 
-from support import EXAMPLES, hushed
+from support import FIXTURES, hushed
 
 if sys.version_info < (3, 12):
     raise unittest.SkipTest("hushed needs Python 3.12+")
@@ -52,10 +52,10 @@ def handler_snippet(body, catches="Exception"):
     return "try:\n    work()\n" + clause + "\n    " + body + "\n"
 
 
-class ExampleScriptTests(unittest.TestCase):
+class SampleFileTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        code, files = analyze(os.path.join(EXAMPLES, "test_script.py"))
+        code, files = analyze(os.path.join(FIXTURES, "analyze_sample.py"))
         assert code == 0
         cls.report = files[0]
 
