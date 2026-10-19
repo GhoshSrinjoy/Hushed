@@ -48,7 +48,7 @@ impl Session {
         }
         self.watch.fill(py, &mut result, self.entry.as_deref(), self.show_all)?;
         let _ = py.import("sys")?.getattr("stdout")?.call_method0("flush"); // the program's output first
-        report::print_run(py, &result, self.show_all, self.top)?;
+        report::print_run(py, &result, self.show_all, self.top, "HUSHED_ALL=1")?;
         if let Some(file) = &self.json {
             if let Err(e) = cli::write_json(file, &report::run_json(&result)) {
                 cli::complain(py, &e)?;

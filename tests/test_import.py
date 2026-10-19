@@ -42,6 +42,7 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(report["status"], "ok")
         self.assertEqual(report["never_ran"], [])  # never_called is in cases.py, not the program's file
         self.assertIn("hushed: ", err)
+        self.assertIn("show them with HUSHED_ALL=1", err)  # not --all, which only `hushed run` has
 
     def test_crash(self):
         code, _, err, report = run("""\

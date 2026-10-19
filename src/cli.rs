@@ -120,7 +120,7 @@ fn run(py: Python<'_>, args: RunArgs) -> PyResult<i32> {
     };
     let result = tracer::run(py, &options)?;
     let _ = py.import("sys")?.getattr("stdout")?.call_method0("flush"); // the script's output first
-    report::print_run(py, &result, args.all, args.top)?;
+    report::print_run(py, &result, args.all, args.top, "--all")?;
     if let Some(file) = &args.json {
         if let Err(e) = write_json(file, &report::run_json(&result)) {
             return complain(py, &e);

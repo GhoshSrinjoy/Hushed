@@ -163,7 +163,8 @@ fn enable_ansi(_fd: i64) -> bool {
 
 // ---------------------------------------------------------------- run report
 
-pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize) -> PyResult<()> {
+/// `all_hint` is how to ask for the full list: `--all`, or `HUSHED_ALL=1` for `import hushed`.
+pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize, all_hint: &str) -> PyResult<()> {
     let mut out = Out::new(py, "stderr")?;
     out.blank();
     out.rule(&format!("hushed: {}", result.target));
@@ -196,7 +197,10 @@ pub fn print_run(py: Python<'_>, result: &RunResult, show_all: bool, top: usize)
                 swallowed(&mut out, s);
             }
         } else {
-            let text = format!("  + {}; show them with --all", how_many(&handled, "caught on purpose"));
+            let text = format!(
+                "  + {}; show them with {all_hint}",
+                how_many(&handled, "caught on purpose")
+            );
             out.line(vec![seg(text, "dim")]);
         }
     }
