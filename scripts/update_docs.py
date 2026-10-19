@@ -43,7 +43,9 @@ def run(command, work):
     proc = subprocess.run(PROGRAMS[words[0]] + words[1:], cwd=work, env=env, stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT, text=True, encoding="utf-8")
     output = proc.stdout
-    for folder in {work, os.path.realpath(work)}:  # tracebacks name the temporary copy
+    # tracebacks name the temporary copy, perhaps by its real path (/private/var/... on macOS):
+    # take the longer name out first, or the shorter one would match inside it
+    for folder in sorted({work, os.path.realpath(work)}, key=len, reverse=True):
         output = output.replace(folder + os.sep, "")
     return re.sub(r"examples\\[\w\\.]+", lambda m: m.group(0).replace("\\", "/"), output)
 
