@@ -21,7 +21,7 @@
 <tspan x="382.5" y="267" textLength="134.9" lengthAdjust="spacing" fill="#f5c66b">silently ignored</tspan>
 <tspan x="20.0" y="286" textLength="75.9" lengthAdjust="spacing">     33  </tspan>
 <tspan x="95.9" y="286" textLength="109.6" lengthAdjust="spacing" fill="#6fc3df">price        </tspan>
-<tspan x="205.5" y="286" textLength="185.5" lengthAdjust="spacing">  `except ValueError` </tspan>
-<tspan x="390.9" y="286" textLength="337.2" lengthAdjust="spacing" fill="#f5c66b">only printed the message; traceback lost</tspan>
+<tspan x="205.5" y="286" textLength="177.0" lengthAdjust="spacing">  `except Exception` </tspan>
+<tspan x="382.5" y="286" textLength="337.2" lengthAdjust="spacing" fill="#f5c66b">only printed the message; traceback lost</tspan>
 </text>
 </svg>

@@ -368,26 +368,42 @@ impl Builder<'_> {
         let raised = self.location(raised_code, s.raised.1)?;
         let mut caught = self.location(caught_code, s.caught.1)?;
         let file = info(caught_code)?.0;
-        let (kind, hidden, handler) = if !self.roots.is_mine(&file) {
-            let thread = Path::new(&file).file_name().is_some_and(|n| n == "threading.py");
-            (if thread { "thread" } else { "library" }, true, None)
+        let mine = self.roots.is_mine(&file);
+        // library handlers are judged by the same rules, from the library's source
+        let source = if mine {
+            Some(file.clone())
         } else {
-            let names: HashSet<String> = exc_type
-                .getattr("__mro__")?
-                .try_iter()?
-                .filter_map(|c| c.ok()?.getattr("__name__").ok()?.extract().ok())
-                .collect();
-            let line = caught.line;
-            match self.parsed(&file).map(|p| p.catch_site(line, &names)) {
-                Some(Site::Finally) => ("finally", true, None),
-                Some(Site::With) => ("with", false, None),
-                Some(Site::Except(h)) => (
-                    "except",
-                    h.hides_errors || (h.verdict == "reraised" && h.broad),
-                    Some(h.clone()),
-                ),
-                _ => ("unknown", false, None),
-            }
+            library_source(py, &file)
+        };
+        if let Some(path) = source.as_ref().filter(|p| **p != file) {
+            caught.file = self.roots.display(path); // a frozen module: show its real file
+        }
+        let names: HashSet<String> = exc_type
+            .getattr("__mro__")?
+            .try_iter()?
+            .filter_map(|c| c.ok()?.getattr("__name__").ok()?.extract().ok())
+            .collect();
+        let line = caught.line;
+        let parsed = match &source {
+            Some(path) => self.parsed(path),
+            None => None,
+        };
+        let (site, hidden, handler) = match parsed.map(|p| p.catch_site(line, &names)) {
+            Some(Site::Finally) => ("finally", true, None),
+            Some(Site::With) => ("with", false, None),
+            Some(Site::Except(h)) => (
+                "except",
+                h.hides_errors || (h.verdict == "reraised" && h.broad),
+                Some(h.clone()),
+            ),
+            _ => ("unknown", false, None),
+        };
+        let kind = if mine {
+            site
+        } else if Path::new(&file).file_name().is_some_and(|n| n == "threading.py") {
+            "thread"
+        } else {
+            "library"
         };
         if let Some(h) = &handler {
             caught.line = h.line; // the clause that matched, not the first clause of the try
@@ -396,7 +412,7 @@ impl Builder<'_> {
             exc_type: exc_type.getattr("__name__")?.extract()?,
             message: s.message.clone(),
             count: s.count,
-            reason: reason(kind, handler.as_ref()),
+            reason: reason(kind, site, handler.as_ref()),
             raised,
             caught,
             kind,
@@ -437,16 +453,31 @@ impl Builder<'_> {
     }
 }
 
-fn reason(kind: &str, handler: Option<&Handler>) -> String {
-    match (kind, handler) {
+/// Why the error counts as swallowed or not. `site` is what caught it, read from the source.
+fn reason(kind: &str, site: &str, handler: Option<&Handler>) -> String {
+    let judged = match (site, handler) {
         ("except", Some(h)) if h.verdict == "reraised" => format!("`{}` did not reach its `raise` this time", h.clause),
         ("except", Some(h)) => format!("`{}` {}", h.clause, source::verdict_text(h.verdict)),
         ("with", _) => "suppressed by a `with` block".into(),
         ("finally", _) => "dropped by a `finally` block (return/break/continue inside it)".into(),
-        ("thread", _) => "killed its thread; the rest of the program kept going".into(),
-        ("library", _) => "caught inside library code".into(),
+        _ if kind == "library" => return "caught inside library code (source not available)".into(),
         _ => "caught (source not available)".into(),
+    };
+    match kind {
+        "thread" => "killed its thread; the rest of the program kept going".into(),
+        "library" => format!("caught inside library code: {judged}"),
+        _ => judged,
     }
+}
+
+/// The source file a library's handler is judged from: the file itself or, for a frozen standard
+/// library module (`<frozen _collections_abc>`), the module's `__file__`.
+fn library_source(py: Python<'_>, file: &str) -> Option<String> {
+    let Some(name) = file.strip_prefix("<frozen ").and_then(|n| n.strip_suffix('>')) else {
+        return Some(file.to_owned());
+    };
+    let module = py.import("sys").ok()?.getattr("modules").ok()?.get_item(name).ok()?;
+    module.getattr("__file__").ok()?.extract().ok()
 }
 
 /// (co_filename, co_qualname, co_firstlineno)

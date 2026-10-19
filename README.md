@@ -51,16 +51,21 @@ read the JSON report from Python.
 
 ## What counts as swallowed
 
-An error counts as swallowed if it was caught and the program carried on without it, for example:
+An error counts as swallowed if a broad handler (a bare `except:`, `except Exception` or
+`except BaseException`) caught it and the program carried on without it, for example when the
+handler:
 
-- an `except` that only has `pass`, `continue` or `return None`
-- an `except` that only prints or logs the message, so the traceback is lost
-- a bare `except:` or `except Exception` that quietly returns a default
-- a `finally` block that returns, which discards the error
-- an error that killed a thread while the rest of the program kept going
+- only has `pass`, `continue` or `return None`
+- only prints or logs the message, so the traceback is lost
+- quietly returns a default
 
-Errors that are logged with their traceback, re-raised, or caught on purpose for one specific type are
-not counted as swallowed. The [full rules](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/report.md#when-an-error-counts-as-swallowed)
+Also swallowed: an error dropped by a `finally` block that returns, an error that killed a thread
+while the rest of the program kept going, and an error in a thread-pool task whose result nobody read.
+
+A handler for a specific type (`except KeyError:`, `except FileNotFoundError: return None`) expected
+that error, so it counts as caught on purpose, whatever it does; so do errors that are logged with
+their traceback or re-raised. Handlers inside libraries are judged by the same rules. The
+[full rules](https://github.com/GhoshSrinjoy/Hushed/blob/main/docs/report.md#when-an-error-counts-as-swallowed)
 are in the docs.
 
 ## Documentation

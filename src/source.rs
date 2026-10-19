@@ -391,7 +391,8 @@ fn handler(node: Node, scope: &str, src: &[u8]) -> Handler {
         catches,
         broad,
         verdict,
-        hides_errors: matches!(verdict, "ignored" | "printed" | "logged-message") || (verdict == "fallback" && broad),
+        // a handler for specific types expected that error, whatever it does with it
+        hides_errors: broad && matches!(verdict, "ignored" | "printed" | "logged-message" | "fallback"),
     }
 }
 

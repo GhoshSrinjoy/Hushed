@@ -101,7 +101,7 @@ class ImportTests(unittest.TestCase):
             def work():
                 try:
                     int("x")
-                except ValueError:
+                except Exception:
                     pass
 
             if __name__ == "__main__":

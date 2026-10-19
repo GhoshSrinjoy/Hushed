@@ -19,7 +19,7 @@ nothing outside hushed would have shown a problem. Each entry looks like this:
 ```text
   ValueError: could not convert string to float: 'N/A'  ×12
       raised  price  pipeline.py:32
-      caught  price  pipeline.py:33  ← `except ValueError` only printed the message; traceback lost
+      caught  price  pipeline.py:33  ← `except Exception` only printed the message; traceback lost
 ```
 
 - Errors with the same type, the same **raised** line and the same **caught** line are grouped;
@@ -29,8 +29,9 @@ nothing outside hushed would have shown a problem. Each entry looks like this:
 - **caught** is the `except` clause that actually matched. Python itself reports the first clause
   of a `try`, so hushed works out which clause applies from the exception's class.
 
-**Caught on purpose.** Errors that were caught and handled visibly, counted on one line. Use
-`--all` to list them in the same format.
+**Caught on purpose.** Errors that were expected or handled visibly (caught by a handler for a
+specific type, logged with a traceback, or suppressed), counted on one line. Use `--all` to list
+them in the same format.
 
 **Time per function.** The slowest named functions (top 10, or `--top N`). Each time includes the
 calls the function makes. A recursive function is counted once, from its outermost call. Time a
@@ -42,21 +43,32 @@ with `@overload` or `@abstractmethod` are left out.
 ## When an error counts as swallowed
 
 An error is *swallowed* when it was caught and the program carried on without it. hushed then reads
-whatever caught it:
+whatever caught it.
+
+Only a **broad** handler can swallow an error: a bare `except:`, or `except Exception` or
+`except BaseException` (alone or in a tuple). A handler for specific types (`except KeyError:`,
+`except (OSError, ValueError):`) expected that error, so it counts as caught on purpose, whatever it
+does with it. `except FileNotFoundError: return None` is how Python code checks for an optional
+file, not a hidden failure.
 
 | What caught it | The report says | Listed as |
 | --- | --- | --- |
-| an `except` with only `pass`, `continue`, `break`, `return`, `return None`, or a string or `...` | silently ignored | swallowed |
-| an `except` that calls `print(...)`, `sys.stdout.write` or `sys.stderr.write` | only printed the message; traceback lost | swallowed |
-| an `except` that calls `.error()`, `.warning()`, `.info()`, `.debug()`, `.critical()`, `.log()` or `warnings.warn()` without `exc_info` | logged the message only; traceback lost | swallowed |
-| a bare `except:` or `except Exception` / `BaseException` that does anything else (returns a default, appends to a list, ...) | took a fallback path | swallowed |
-| the same, for a specific exception type (`except KeyError: value = default`) | took a fallback path | caught on purpose |
+| a broad `except` with only `pass`, `continue`, `break`, `return`, `return None`, or a string or `...` | silently ignored | swallowed |
+| a broad `except` that calls `print(...)`, `sys.stdout.write` or `sys.stderr.write` | only printed the message; traceback lost | swallowed |
+| a broad `except` that calls `.error()`, `.warning()`, `.info()`, `.debug()`, `.critical()`, `.log()` or `warnings.warn()` without `exc_info` | logged the message only; traceback lost | swallowed |
+| a broad `except` that does anything else (returns a default, appends to a list, ...) | took a fallback path | swallowed |
+| any of these for specific exception types (`except KeyError: value = default`) | the same words | caught on purpose |
 | an `except` that calls `.exception()`, passes `exc_info=...`, or uses `traceback.print_exc()` / `format_exc()` / `print_exception()` / `format_exception()` or `capture_exception()` | logged with traceback | caught on purpose |
 | an `except` with a `raise` that didn't run this time | did not reach its `raise` this time | swallowed if the clause is broad |
 | a `finally` block that runs `return`, `break` or `continue` (which discards the error) | dropped by a `finally` block | swallowed |
 | a `with` block whose context manager suppressed it (`contextlib.suppress`, ...) | suppressed by a `with` block | caught on purpose |
 | the thread machinery: the error ended a thread while the rest of the program kept going | killed its thread | swallowed |
-| other library code, e.g. a framework or `concurrent.futures` | caught inside library code | swallowed |
+| library code: the standard library, a framework, `concurrent.futures`, ... | caught inside library code, then why | by the same rules, read from the library's source |
+
+Handlers in library code are judged like yours. A thread pool that catches a task's error with
+`except BaseException` and stores it in a future nobody reads has swallowed it. `Mapping.get()`
+catching your `__getitem__`'s `KeyError` has not. When a library's source can't be read, the error
+is listed as caught on purpose.
 
 These are never reported:
 
@@ -110,10 +122,10 @@ With `-v` the report also lists the `print()` calls and the assigned variable na
         "kind": "except",
         "hidden": true,
         "handler": {
-          "line": 33, "scope": "price", "catches": "ValueError", "broad": false,
-          "verdict": "printed", "clause": "except ValueError", "hides_errors": true
+          "line": 33, "scope": "price", "catches": "Exception", "broad": true,
+          "verdict": "printed", "clause": "except Exception", "hides_errors": true
         },
-        "reason": "`except ValueError` only printed the message; traceback lost"
+        "reason": "`except Exception` only printed the message; traceback lost"
       }
     ],
     "functions": [{"function": "main", "file": "pipeline.py", "line": 38, "calls": 1, "seconds": 0.0004}],
@@ -132,7 +144,7 @@ With `-v` the report also lists the `print()` calls and the assigned variable na
 | `error`, `error_at` | for a crash: the error, and where in your code it was raised |
 | `swallowed[].kind` | `"except"`, `"with"`, `"finally"`, `"thread"`, `"library"`, or `"unknown"` when the source couldn't be read |
 | `swallowed[].hidden` | `true` for swallowed errors, `false` for errors caught on purpose |
-| `swallowed[].handler` | the `except` clause, when `kind` is `"except"`; `verdict` is one of `ignored`, `printed`, `logged-message`, `logged`, `fallback`, `reraised` |
+| `swallowed[].handler` | the `except` clause that caught it (also in library code); `verdict` is one of `ignored`, `printed`, `logged-message`, `logged`, `fallback`, `reraised` |
 | `files` | the watched files that ran code |
 | `summary` | how many errors were swallowed (`hidden_errors`) and caught on purpose |
 
@@ -152,8 +164,8 @@ Locations use paths relative to the watched folder. Times are in seconds.
          "complexity": 2, "returns": "value", "docstring": false, "decorators": []}
       ],
       "handlers": [
-        {"line": 33, "scope": "price", "catches": "ValueError", "broad": false, "verdict": "printed",
-         "clause": "except ValueError", "hides_errors": true}
+        {"line": 33, "scope": "price", "catches": "Exception", "broad": true, "verdict": "printed",
+         "clause": "except Exception", "hides_errors": true}
       ],
       "prints": [[34, "price"], [42, "main"]],
       "variables": {"<module>": ["ROWS"], "load_settings": ["f"], "price": ["e"], "main": ["records", "settings", "total"]},

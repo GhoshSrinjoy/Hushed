@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 from support import FIXTURES, hushed
@@ -16,15 +17,18 @@ EXPECTED = {
     ("broad_print", "ValueError"): (1, "except", True),
     ("bare_pass", "ValueError"): (1, "except", True),
     ("logged_message_only", "ValueError"): (1, "except", True),
-    ("reraised_then_caught", "ValueError"): (1, "except", True),
-    ("second_clause", "TypeError"): (1, "except", True),
     ("finally_return", "ValueError"): (1, "finally", True),
-    ("caller_of_converted", "RuntimeError"): (1, "except", True),
-    ("from_library", "JSONDecodeError"): (1, "except", True),
-    ("from_c", "ValueError"): (1, "except", True),
-    ("in_loop", "ValueError"): (50, "except", True),
     ("Thread._bootstrap_inner", "ValueError"): (1, "thread", True),
-    ("generator", "ValueError"): (1, "except", True),
+    ("_WorkItem.run", "ValueError"): (1, "library", True),
+    # a handler for a specific type expected the error, so whatever it does, it's on purpose
+    ("reraised_then_caught", "ValueError"): (1, "except", False),
+    ("second_clause", "TypeError"): (1, "except", False),
+    ("caller_of_converted", "RuntimeError"): (1, "except", False),
+    ("from_library", "JSONDecodeError"): (1, "except", False),
+    ("from_c", "ValueError"): (1, "except", False),
+    ("in_loop", "ValueError"): (50, "except", False),
+    ("generator", "ValueError"): (1, "except", False),
+    ("Mapping.get", "KeyError"): (1, "library", False),
     ("logged_with_traceback", "ValueError"): (1, "except", False),
     ("suppressed", "TypeError"): (1, "with", False),
     ("specific_fallback", "KeyError"): (1, "except", False),
@@ -46,6 +50,11 @@ def swallowed(report):
             for s in report["swallowed"]}
 
 
+def write(path, source):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(textwrap.dedent(source))
+
+
 def fixture_line(fixture, text):
     with open(os.path.join(FIXTURES, fixture), encoding="utf-8") as f:
         return next(n for n, line in enumerate(f, 1) if line.strip() == text)
@@ -57,7 +66,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(out.splitlines()[-1], "done")
         self.assertEqual(swallowed(report), EXPECTED)
-        self.assertEqual(report["summary"], {"hidden_errors": 61, "caught_on_purpose": 3})
+        self.assertEqual(report["summary"], {"hidden_errors": 6, "caught_on_purpose": 60})
         self.assertEqual([n["function"] for n in report["never_ran"]], ["never_called"])
         self.assertIn("in_loop", {f["function"] for f in report["functions"]})
 
@@ -93,6 +102,42 @@ class RunTests(unittest.TestCase):
         self.assertEqual(code, 4)
         self.assertEqual(report["status"], "exit")
         self.assertEqual(json.loads(out), {"args": ["a", "--flag"], "pickled": True, "frame_freed": True})
+
+    def test_library_handlers_are_judged_by_the_same_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib, app = os.path.join(tmp, "lib"), os.path.join(tmp, "app")
+            os.mkdir(lib)
+            os.mkdir(app)
+            write(os.path.join(lib, "catcher.py"), """\
+                def fallback(fn):
+                    try:
+                        return fn()
+                    except ValueError:
+                        return None
+
+                def swallow(fn):
+                    try:
+                        return fn()
+                    except Exception:
+                        pass
+                """)
+            write(os.path.join(app, "main.py"), f"""\
+                import sys
+                sys.path.insert(0, {lib!r})  # outside the watched folder, so it's library code
+                import catcher
+
+                def fail():
+                    raise ValueError("bad")
+
+                catcher.fallback(fail)
+                catcher.swallow(fail)
+                """)
+            report_path = os.path.join(tmp, "report.json")
+            hushed("run", "--json", report_path, os.path.join(app, "main.py"))
+            with open(report_path, encoding="utf-8") as f:
+                report = json.load(f)["run"]
+        self.assertEqual(swallowed(report), {("fallback", "ValueError"): (1, "library", False),
+                                             ("swallow", "ValueError"): (1, "library", True)})
 
     def test_fail_on_swallowed(self):
         self.assertEqual(run("cases.py", "--fail-on-swallowed")[0], 3)

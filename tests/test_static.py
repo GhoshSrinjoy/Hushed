@@ -98,11 +98,15 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual(broad, {"bare": True, "exception": True, "tuple": True, "specific": False, "star": False})
         self.assertEqual(reports["star"]["handlers"][0]["clause"], "except* OSError")
 
-    def test_broad_fallback_hides_errors_but_specific_does_not(self):
-        reports = analyze_sources({"broad": handler_snippet("y = 0", "Exception"),
-                                   "specific": handler_snippet("y = 0", "KeyError")})
-        self.assertTrue(reports["broad"]["handlers"][0]["hides_errors"])
-        self.assertFalse(reports["specific"]["handlers"][0]["hides_errors"])
+    def test_only_broad_handlers_hide_errors(self):
+        bodies = ["pass", "return None", "print(e)", "log.error('failed: %s', e)", "y = 0"]
+        sources = {}
+        for i, body in enumerate(bodies):
+            sources[f"broad{i}"] = handler_snippet(body, "Exception")
+            sources[f"specific{i}"] = handler_snippet(body, "(KeyError, OSError)")
+        for name, report in analyze_sources(sources).items():
+            with self.subTest(name):
+                self.assertEqual(report["handlers"][0]["hides_errors"], name.startswith("broad"))
 
 
 class StructureTests(unittest.TestCase):

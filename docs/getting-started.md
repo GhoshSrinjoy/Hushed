@@ -37,12 +37,13 @@ hushed writes its report to stderr:
    - `load_settings` couldn't find `settings.json`. A broad `except Exception` quietly returned
      defaults, so the job ran with settings nobody chose.
    - `parse` met a broken row. `except Exception` returned `None`, and the row vanished.
-   - `price` hit `'N/A'`. The handler printed a one-line warning, so you know something went
-     wrong but not which row, and the traceback is gone.
+   - `price` hit `'N/A'`. Its `except Exception` printed a one-line warning, so you know
+     something went wrong but not which row, and the traceback is gone.
 3. **Time per function.** Each function's time includes the calls it makes.
 
-Errors that were caught on purpose (logged with a traceback, a fallback for one specific exception
-type, `contextlib.suppress`) are counted on a separate line. Add `--all` to list them too.
+Only broad handlers (`except:`, `except Exception`, `except BaseException`) can swallow an error.
+Errors caught on purpose (by a handler for a specific exception type, logged with a traceback, or
+suppressed with `contextlib.suppress`) are counted on a separate line. Add `--all` to list them too.
 
 ## Or import it
 

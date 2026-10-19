@@ -30,7 +30,7 @@ def parse(row):
 def price(record):
     try:
         return float(record["price"])
-    except ValueError as e:
+    except Exception as e:
         print(f"warning: {e}")  # a message, but no traceback and no row id
         return 0.0
 

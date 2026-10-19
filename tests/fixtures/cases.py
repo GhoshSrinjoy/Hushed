@@ -3,6 +3,8 @@ import contextlib
 import json
 import logging
 import threading
+from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 
 logging.disable(logging.CRITICAL)
 log = logging.getLogger("cases")
@@ -45,7 +47,7 @@ def logged_with_traceback():
 def logged_message_only():
     try:
         fail()
-    except ValueError as e:
+    except Exception as e:
         log.warning("failed: %s", e)
 
 
@@ -122,6 +124,25 @@ def thread_dies():
     worker.join()
 
 
+def lost_in_pool():
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(fail)  # nobody reads the future, so the pool's `except BaseException` keeps the error
+
+
+class Settings(Mapping):
+    """A mapping with no keys. Its `.get()` is `Mapping.get`, from a frozen standard library module."""
+
+    def __getitem__(self, key):
+        raise KeyError(key)
+
+    __iter__ = lambda self: iter(())  # noqa: E731  (lambdas, so they aren't listed as never run)
+    __len__ = lambda self: 0  # noqa: E731
+
+
+def mapping_get():
+    return Settings().get("missing")  # Mapping.get catches the KeyError on purpose: `except KeyError`
+
+
 def generator():
     def numbers():
         yield 1
@@ -149,6 +170,6 @@ if __name__ == "__main__":
     for case in (broad_print, bare_pass, specific_fallback, logged_with_traceback,
                  logged_message_only, reraised_then_caught, second_clause, suppressed,
                  finally_return, caller_of_converted, from_library, from_c, in_loop,
-                 thread_dies, generator, control_flow):
+                 thread_dies, lost_in_pool, mapping_get, generator, control_flow):
         case()
     print("done")

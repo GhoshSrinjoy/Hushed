@@ -10,8 +10,9 @@ hushed run --fail-on-swallowed nightly_job.py
 ```
 
 The exit code is the script's own, except that a successful run with swallowed errors exits with 3.
-Errors caught on purpose (logged with a traceback, a fallback for a specific exception type,
-`contextlib.suppress`) never fail the build. See [the rules](report.md#when-an-error-counts-as-swallowed).
+Errors caught on purpose (by a handler for a specific exception type, logged with a traceback, or
+suppressed with `contextlib.suppress`) never fail the build. See
+[the rules](report.md#when-an-error-counts-as-swallowed).
 
 ## GitHub Actions
 
